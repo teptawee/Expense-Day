@@ -101,10 +101,8 @@ body {
 }
 
 /* ===========================================
-   NAVBAR & BOTTOM NAV (Breakpoint 768px)
+   NAVBAR & BOTTOM NAV
    =========================================== */
-
-/* -------- TOP NAVBAR (Desktop) -------- */
 .navbar {
   display: none;
   position: sticky;
@@ -186,17 +184,6 @@ body {
   overflow: hidden;
 }
 
-.nav-link::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--gradient-purple);
-  opacity: 0;
-  border-radius: 999px;
-  transition: opacity 0.3s;
-  z-index: -1;
-}
-
 .nav-link .nav-icon {
   font-size: 15px;
   transition: transform 0.3s var(--ease-spring);
@@ -227,7 +214,6 @@ body {
   75% { transform: rotate(12deg); }
 }
 
-/* -------- BOTTOM NAV (Mobile) -------- */
 .bottom-nav {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -319,7 +305,7 @@ main {
 }
 
 /* ===========================================
-   CARDS (Glassmorphism + Hover)
+   CARDS
    =========================================== */
 .card {
   background: rgba(255, 255, 255, 0.85);
@@ -426,17 +412,6 @@ main {
   align-items: center;
   gap: 6px;
   box-shadow: 0 4px 14px rgba(167, 139, 250, 0.4);
-  position: relative;
-  overflow: hidden;
-}
-
-.btn-current::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.4), transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s;
 }
 
 .btn-current:hover {
@@ -444,12 +419,10 @@ main {
   box-shadow: 0 8px 24px rgba(167, 139, 250, 0.55);
 }
 
-.btn-current:hover::before { opacity: 1; }
-
 .btn-current:active { transform: translateY(0) scale(0.97); }
 
 /* ===========================================
-   SUMMARY CARDS (4 ใบแถวเดียว)
+   SUMMARY CARDS
    =========================================== */
 .summary-grid {
   display: grid;
@@ -499,29 +472,10 @@ main {
   border-radius: 20px 20px 0 0;
 }
 
-.summary-card-new::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at top right, currentColor, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.4s;
-  pointer-events: none;
-}
-
-.summary-card-new:hover::after {
-  opacity: 0.06;
-}
-
 .summary-card-new.pink::before { background: var(--gradient-pink); }
 .summary-card-new.green::before { background: linear-gradient(90deg, #34d399, #10b981); }
 .summary-card-new.blue::before { background: var(--gradient-blue); }
 .summary-card-new.yellow::before { background: var(--gradient-yellow); }
-
-.summary-card-new.pink { color: #ec4899; }
-.summary-card-new.green { color: #10b981; }
-.summary-card-new.blue { color: #3b82f6; }
-.summary-card-new.yellow { color: #f59e0b; }
 
 .summary-card-new .card-label {
   font-size: 12px;
@@ -782,16 +736,6 @@ input:focus, select:focus, textarea:focus {
   overflow: hidden;
 }
 
-.btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.3), transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.btn:hover::before { opacity: 1; }
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
@@ -862,7 +806,7 @@ input:focus, select:focus, textarea:focus {
 .list-item .meta { font-size: 11px; color: #94a3b8; }
 
 /* ===========================================
-   TOAST (สวยขึ้น + animation)
+   TOAST
    =========================================== */
 .toast {
   position: fixed;
@@ -1338,7 +1282,7 @@ h2 {
 .empty-state p { font-size: 15px; font-weight: 500; }
 
 /* ===========================================
-   FLOATING ACTION BUTTON
+   FAB
    =========================================== */
 .fab {
   position: fixed;
@@ -1462,7 +1406,7 @@ h2 {
 }
 
 /* ===========================================
-   BUDGET CARDS (แบบการ์ด 4 คอลัมน์)
+   BUDGET CARDS
    =========================================== */
 .budget-section-title {
   display: flex;
@@ -1767,4 +1711,27 @@ h2 {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ===========================================
+   RECENT EXPENSES (3 วันล่าสุดใน Dashboard)
+   =========================================== */
+#recentSection .date-group-header {
+  background: linear-gradient(90deg, rgba(251, 146, 60, 0.08), transparent);
+  border-radius: 10px;
+}
+
+#recentSection .expense-item {
+  border-left-width: 3px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.95), rgba(255, 250, 245, 0.95));
+}
+
+#recentSection .expense-item:hover {
+  border-left-width: 5px;
+  background: linear-gradient(90deg, rgba(255, 250, 245, 1), rgba(255, 240, 230, 1));
+}
+
+#recentSection .date-total {
+  background: var(--gradient-pink);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.3);
 }
