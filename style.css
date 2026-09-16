@@ -91,7 +91,7 @@ body {
 
 /* Main */
 main {
-  max-width: 1024px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 24px 16px;
 }
@@ -152,29 +152,6 @@ main {
   position: relative;
   height: 260px;
 }
-
-/* Budget bars */
-.budget-item { margin-bottom: 16px; }
-.budget-header {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-.budget-bar {
-  height: 10px;
-  background: #f1f5f9;
-  border-radius: 999px;
-  overflow: hidden;
-}
-.budget-fill {
-  height: 100%;
-  border-radius: 999px;
-  transition: width 0.3s;
-}
-.budget-fill.ok { background: var(--emerald); }
-.budget-fill.warn { background: var(--amber); }
-.budget-fill.danger { background: var(--red); }
 
 /* Forms */
 .form-group { margin-bottom: 16px; }
@@ -656,7 +633,7 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   .fab { bottom: 30px; right: 30px; }
 }
 
-/* Edit modal */
+/* Modal */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -716,4 +693,282 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .modal-actions .save {
   background: var(--emerald);
   color: white;
+}
+
+/* ===========================================
+   วงเงินคงเหลือแต่ละหมวด (แบบการ์ด 4 คอลัมน์)
+   =========================================== */
+
+.budget-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.budget-section-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: #f472b6;
+  border-radius: 999px;
+}
+
+.budget-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .budget-cards-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1024px) {
+  .budget-cards-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Budget Card */
+.budget-card {
+  border-radius: 16px;
+  padding: 16px;
+  border: 2px solid transparent;
+  transition: 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.budget-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+}
+
+/* Status: OK (เขียว) */
+.budget-card.ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.budget-card.ok .pct-value { color: #16a34a; }
+.budget-card.ok .bar-fill { background: #22c55e; }
+
+/* Status: Warn (เหลือง) */
+.budget-card.warn {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.budget-card.warn .pct-value { color: #f59e0b; }
+.budget-card.warn .bar-fill { background: #fbbf24; }
+
+/* Status: Danger (แดง) */
+.budget-card.danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.budget-card.danger .pct-value { color: #dc2626; }
+.budget-card.danger .bar-fill { background: #ef4444; }
+
+/* Over budget */
+.budget-card.over {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+.budget-card.over .pct-value { color: #b91c1c; }
+.budget-card.over .bar-fill { background: #dc2626; }
+
+/* Card Header */
+.budget-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 8px;
+}
+
+.budget-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.budget-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.budget-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1e293b;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 130px;
+}
+
+.budget-card-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+/* Actions */
+.budget-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.budget-action-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: 0.15s;
+  padding: 0;
+}
+
+.budget-action-btn.edit {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.budget-action-btn.edit:hover { background: #ddd6fe; }
+
+.budget-action-btn.add {
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+.budget-action-btn.add:hover { background: #c7d2fe; }
+
+.budget-action-btn.list {
+  background: #fef3c7;
+  color: #d97706;
+}
+.budget-action-btn.list:hover { background: #fde68a; }
+
+/* Percentage big */
+.budget-pct {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  margin-bottom: 14px;
+}
+
+.pct-value {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.5px;
+}
+
+.pct-label {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+/* Stats grid (ใช้ไป / วงเงิน / คงเหลือ) */
+.budget-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.stat-box {
+  background: white;
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.stat-label {
+  font-size: 10px;
+  color: #64748b;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.stat-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stat-value.used { color: #dc2626; }
+.stat-value.limit { color: #2563eb; }
+.stat-value.remain { color: #16a34a; }
+.stat-value.remain.negative { color: #dc2626; }
+
+/* Progress bar */
+.budget-card-bar {
+  height: 8px;
+  background: rgba(255,255,255,0.7);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.budget-card-bar .bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* Confetti emoji for over budget */
+.confetti {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 16px;
+  animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Modal สำหรับ Quick Edit วงเงิน */
+.budget-edit-modal .modal {
+  max-width: 400px;
+}
+
+.budget-edit-modal .current-info {
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.budget-edit-modal .current-info strong {
+  color: #1e293b;
 }
