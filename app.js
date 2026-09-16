@@ -1355,3 +1355,58 @@ async function renderSettings(root) {
 
   await draw();
 }
+
+// ===========================================
+// DARK MODE TOGGLE
+// ===========================================
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+}
+
+function updateThemeIcon(theme) {
+  const icons = document.querySelectorAll('.theme-icon');
+  icons.forEach(el => {
+    el.textContent = theme === 'dark' ? '☀️' : '🌙';
+  });
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeIcon(next);
+
+  showToast(next === 'dark' ? '🌙 โหมดกลางคืน' : '☀️ โหมดสว่าง');
+}
+
+// โหลดธีมทันที (ก่อน DOM พร้อม) เพื่อไม่ให้กระพริบ
+(function applyThemeEarly() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+
+// ผูกปุ่ม toggle เมื่อโหลดหน้า
+window.addEventListener('load', () => {
+  initTheme();
+
+  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+  document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
+});
+
+// ติดตามการเปลี่ยนแปลงของ OS theme (ถ้าผู้ใช้ยังไม่เคยตั้งเอง)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  if (!localStorage.getItem('theme')) {
+    const theme = e.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon(theme);
+  }
+});
