@@ -124,6 +124,7 @@ function skeletonForm() {
 // STATE
 // ===========================================
 let currentMonth = localMonthStr(new Date());
+let currentYear = new Date().getFullYear();
 
 let listState = {
   range: '7',
@@ -178,6 +179,8 @@ async function router() {
     await renderAdd(app);
   } else if (route === 'settings') {
     await renderSettings(app);
+  } else if (route === 'year') {
+    await renderYear(app);
   } else {
     await renderDashboard(app);
   }
@@ -1410,3 +1413,368 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e)
     updateThemeIcon(theme);
   }
 });
+
+// ===========================================
+// YEAR PAGE (กราฟรายปี)
+// ===========================================
+async function renderYear(root) {
+  root.innerHTML = skeletonSummary() +
+    '<div class="skeleton skeleton-chart" style="height:340px;margin-bottom:16px"></div>' +
+    skeletonCharts();
+
+  const yearStart = `${currentYear}-01-01`;
+  const yearEnd = `${currentYear}-12-31`;
+
+  // ปีก่อน
+  const prevYearStart = `${currentYear - 1}-01-01`;
+  const prevYearEnd = `${currentYear - 1}-12-31`;
+
+  const [expRes, prevExpRes, catRes] = await Promise.all([
+    db.from('expenses')
+      .select('*, categories(name,icon)')
+      .gte('expense_date', yearStart)
+      .lte('expense_date', yearEnd)
+      .order('expense_date', { ascending: false }),
+    db.from('expenses')
+      .select('amount')
+      .gte('expense_date', prevYearStart)
+      .lte('expense_date', prevYearEnd),
+    db.from('categories').select('*')
+  ]);
+
+  const expenses = expRes.data || [];
+  const prevExpenses = prevExpRes.data || [];
+  const categories = catRes.data || [];
+
+  const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
+
+  // ยอดรวมทั้งปี
+  const totalYear = sum(expenses);
+  const totalPrevYear = sum(prevExpenses);
+
+  // ค่าเฉลี่ยต่อเดือน
+  const monthsWithData = new Set(expenses.map(e => e.expense_date.slice(0, 7))).size;
+  const avgPerMonth = monthsWithData > 0 ? totalYear / monthsWithData : 0;
+  const avgPerMonthFull = totalYear / 12;
+
+  // เดือนที่ใช้มากสุด
+  const monthlyTotals = {};
+  expenses.forEach(e => {
+    const m = parseInt(e.expense_date.slice(5, 7));
+    monthlyTotals[m] = (monthlyTotals[m] || 0) + Number(e.amount);
+  });
+
+  let maxMonth = 0, maxMonthAmount = 0;
+  Object.entries(monthlyTotals).forEach(([m, amt]) => {
+    if (amt > maxMonthAmount) {
+      maxMonthAmount = amt;
+      maxMonth = parseInt(m);
+    }
+  });
+
+  const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+  // เปรียบเทียบปีก่อน
+  let yearChange;
+  if (totalPrevYear === 0 && totalYear === 0) {
+    yearChange = { pct: 0, type: 'flat' };
+  } else if (totalPrevYear === 0) {
+    yearChange = { pct: 100, type: 'new' };
+  } else {
+    const change = ((totalYear - totalPrevYear) / totalPrevYear) * 100;
+    yearChange = {
+      pct: Math.abs(change),
+      type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
+    };
+  }
+
+  // หมวดที่ใช้มากสุด
+  const byCategory = {};
+  expenses.forEach(e => {
+    const k = e.categories?.name || 'ไม่ระบุ';
+    if (!byCategory[k]) byCategory[k] = { amount: 0, count: 0, icon: e.categories?.icon || '📁' };
+    byCategory[k].amount += Number(e.amount);
+    byCategory[k].count += 1;
+  });
+
+  const rankedCategories = Object.entries(byCategory)
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.amount - a.amount);
+
+  const isCurrentYear = currentYear === new Date().getFullYear();
+
+  root.innerHTML = `
+    <div class="year-selector">
+      <div class="year-selector-label">
+        <span>📅</span>
+        <span>ดูปี:</span>
+      </div>
+      <div class="year-selector-input">
+        <input type="number" id="yearPicker" value="${currentYear}" min="2000" max="2100" step="1" />
+      </div>
+      ${!isCurrentYear ? `
+        <button class="btn-year-current" id="btnYearCurrent">
+          <span>📍</span> ปัจจุบัน
+        </button>
+      ` : ''}
+    </div>
+
+    <div class="year-stats-grid">
+      <div class="year-stat-card total">
+        <div class="label">💰 ยอดรวมทั้งปี</div>
+        <div class="value">${totalYear.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="sub">${expenses.length} รายการ</div>
+      </div>
+
+      <div class="year-stat-card avg">
+        <div class="label">📊 เฉลี่ย/เดือน</div>
+        <div class="value">${Math.round(avgPerMonthFull).toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="sub">${monthsWithData} เดือนที่มีข้อมูล</div>
+      </div>
+
+      <div class="year-stat-card max">
+        <div class="label">🔥 เดือนที่ใช้มากสุด</div>
+        <div class="value">${maxMonth ? monthNames[maxMonth - 1] : '-'}</div>
+        <div class="sub">${maxMonthAmount > 0 ? `฿${maxMonthAmount.toLocaleString()}` : 'ยังไม่มีข้อมูล'}</div>
+      </div>
+
+      <div class="year-stat-card compare">
+        <div class="label">📈 เทียบปีก่อน</div>
+        <div class="value" style="color: ${
+          yearChange.type === 'up' ? '#dc2626' :
+          yearChange.type === 'down' ? '#16a34a' :
+          yearChange.type === 'new' ? '#f59e0b' : '#64748b'
+        }">
+          ${yearChange.type === 'new' ? 'ใหม่' : 
+            yearChange.type === 'flat' ? '—' :
+            (yearChange.type === 'up' ? '▲ ' : '▼ ') + yearChange.pct.toFixed(1) + '%'}
+        </div>
+        <div class="sub">${totalPrevYear > 0 ? `ปีก่อน: ฿${totalPrevYear.toLocaleString()}` : 'ยังไม่มีข้อมูล'}</div>
+      </div>
+    </div>
+
+    <div class="card year-chart-card">
+      <h3>📈 รายจ่าย 12 เดือน (${currentYear})</h3>
+      <div class="chart-container"><canvas id="yearChart"></canvas></div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h3>🥇 หมวดที่ใช้มากสุด (Top 10)</h3>
+        <div class="rank-list" id="rankList"></div>
+      </div>
+      <div class="card">
+        <h3>📊 เปรียบเทียบรายเดือน</h3>
+        <div class="chart-container"><canvas id="monthCompareChart"></canvas></div>
+      </div>
+    </div>
+  `;
+
+  // Event: Year picker
+  document.getElementById('yearPicker').addEventListener('change', (e) => {
+    const y = parseInt(e.target.value);
+    if (y >= 2000 && y <= 2100) {
+      currentYear = y;
+      renderYear(root);
+    }
+  });
+
+  // Event: ปุ่มปัจจุบัน
+  const btnYearCurrent = document.getElementById('btnYearCurrent');
+  if (btnYearCurrent) {
+    btnYearCurrent.onclick = () => {
+      currentYear = new Date().getFullYear();
+      renderYear(root);
+    };
+  }
+
+  // ===========================================
+  // Chart: 12 เดือน
+  // ===========================================
+  const monthlyData = Array.from({ length: 12 }, (_, i) => monthlyTotals[i + 1] || 0);
+
+  new Chart(document.getElementById('yearChart'), {
+    type: 'bar',
+    data: {
+      labels: monthNames,
+      datasets: [{
+        label: 'บาท',
+        data: monthlyData,
+        backgroundColor: (ctx) => {
+          const chart = ctx.chart;
+          const { ctx: c, chartArea } = chart;
+          if (!chartArea) return '#10b981';
+          const gradient = c.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+          gradient.addColorStop(0, '#34d399');
+          gradient.addColorStop(1, '#059669');
+          return gradient;
+        },
+        borderRadius: 10,
+        borderSkipped: false,
+        maxBarThickness: 40
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          titleFont: { family: 'Sarabun', size: 13, weight: '600' },
+          bodyFont: { family: 'Sarabun', size: 13 },
+          cornerRadius: 10,
+          callbacks: {
+            title: (ctx) => `${ctx[0].label} ${currentYear}`,
+            label: (ctx) => ` รวม: ฿${ctx.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
+          ticks: {
+            callback: v => v.toLocaleString(),
+            font: { family: 'Sarabun', size: 11 },
+            color: '#94a3b8'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Sarabun', size: 11, weight: '600' },
+            color: '#64748b'
+          }
+        }
+      },
+      animation: { duration: 1000, easing: 'easeOutQuart' }
+    }
+  });
+
+  // ===========================================
+  // Chart: เปรียบเทียบปีนี้ vs ปีก่อน (รายเดือน)
+  // ===========================================
+  const prevMonthlyTotals = {};
+  prevExpenses.forEach(e => {
+    const m = parseInt(e.expense_date ? e.expense_date.slice(5, 7) : e.month);
+    // ถ้าไม่มี expense_date ใน select ของ prevExpenses ให้ skip
+  });
+
+  // โหลด prevMonthly แยกเพื่อความชัวร์
+  const { data: prevDataForCompare } = await db
+    .from('expenses')
+    .select('amount, expense_date')
+    .gte('expense_date', prevYearStart)
+    .lte('expense_date', prevYearEnd);
+
+  const prevMonthly = Array(12).fill(0);
+  (prevDataForCompare || []).forEach(e => {
+    const m = parseInt(e.expense_date.slice(5, 7));
+    prevMonthly[m - 1] += Number(e.amount);
+  });
+
+  new Chart(document.getElementById('monthCompareChart'), {
+    type: 'line',
+    data: {
+      labels: monthNames,
+      datasets: [
+        {
+          label: String(currentYear),
+          data: monthlyData,
+          borderColor: '#10b981',
+          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: '#10b981',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 3
+        },
+        {
+          label: String(currentYear - 1),
+          data: prevMonthly,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245, 158, 11, 0.05)',
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: '#f59e0b',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 5,
+          pointHoverRadius: 7,
+          borderWidth: 3,
+          borderDash: [5, 5]
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            font: { family: 'Sarabun', size: 12, weight: '600' },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            boxWidth: 8,
+            padding: 15
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          titleFont: { family: 'Sarabun', size: 13, weight: '600' },
+          bodyFont: { family: 'Sarabun', size: 13 },
+          cornerRadius: 10,
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: ฿${ctx.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
+          ticks: {
+            callback: v => v.toLocaleString(),
+            font: { family: 'Sarabun', size: 11 },
+            color: '#94a3b8'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Sarabun', size: 11, weight: '600' },
+            color: '#64748b'
+          }
+        }
+      },
+      animation: { duration: 1200, easing: 'easeOutQuart' }
+    }
+  });
+
+  // ===========================================
+  // Category Ranking
+  // ===========================================
+  const rankList = document.getElementById('rankList');
+  if (!rankedCategories.length) {
+    rankList.innerHTML = '<p class="empty">ยังไม่มีข้อมูลในปีนี้</p>';
+  } else {
+    rankList.innerHTML = rankedCategories.slice(0, 10).map((cat, i) => `
+      <div class="rank-item">
+        <div class="rank-num">${i + 1}</div>
+        <div class="rank-icon">${cat.icon}</div>
+        <div class="rank-body">
+          <div class="rank-name">${cat.name}</div>
+          <div class="rank-count">${cat.count} รายการ</div>
+        </div>
+        <div class="rank-amount">฿${cat.amount.toLocaleString()}</div>
+      </div>
+    `).join('');
+  }
+}
