@@ -216,7 +216,7 @@ body {
 
 .bottom-nav {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   position: fixed;
   bottom: 0; left: 0; right: 0;
   background: rgba(255, 255, 255, 0.92);
