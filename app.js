@@ -47,7 +47,9 @@ async function router() {
   setActiveNav(route);
   const app = document.getElementById('app');
 
-  if (route === 'add') {
+  if (route === 'list') {
+    await renderList(app);
+  } else if (route === 'add') {
     await renderAdd(app);
   } else if (route === 'settings') {
     await renderSettings(app);
@@ -220,6 +222,317 @@ async function renderDashboard(root) {
       `;
     }).join('');
   }
+}
+
+// ===========================================
+// LIST PAGE (รายการทั้งหมด)
+// ===========================================
+let listState = {
+  range: '7',
+  dateFrom: null,
+  dateTo: null,
+  categoryId: null
+};
+
+const CATEGORY_CLASS = {
+  'ค่ากาแฟ': 'coffee',
+  'ค่าอาหาร': 'food',
+  'ค่าเครื่องดื่ม': 'drink',
+  'ค่าหวย': 'lotto',
+  'ค่าช้อปปิ้ง': 'shop',
+  'ค่ายานพาหนะ': 'travel',
+  'ค่าน้ำมันรถ': 'oil',
+  'ค่ายารักษาโรค': 'med',
+  'ค่าของใช้ส่วนตัว': 'personal',
+  'ค่าของใช้จำเป็น': 'need',
+  'ค่าอื่นๆ': 'other'
+};
+
+function getDateRange() {
+  const today = new Date();
+  const fmtDate = d => d.toISOString().slice(0,10);
+
+  if (listState.range === 'all') return { from: null, to: null };
+
+  const days = listState.range === '7' ? 7 : 30;
+  const from = new Date(today);
+  from.setDate(from.getDate() - (days - 1));
+  return { from: fmtDate(from), to: fmtDate(today) };
+}
+
+function formatThaiDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('th-TH', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
+async function renderList(root) {
+  root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+
+  const { data: cats } = await db.from('categories').select('*').order('name');
+  const categories = cats || [];
+
+  root.innerHTML = `
+    <div class="list-page-header">
+      <div class="icon-badge">📋</div>
+      <h2>รายการทั้งหมด</h2>
+    </div>
+
+    <div class="filter-tabs">
+      <button class="filter-tab ${listState.range === '7' ? 'active' : ''}" data-range="7">
+        <span>📅</span> 7 วันล่าสุด
+      </button>
+      <button class="filter-tab ${listState.range === '30' ? 'active' : ''}" data-range="30">
+        <span>📅</span> 30 วัน
+      </button>
+      <button class="filter-tab ${listState.range === 'all' ? 'active' : ''}" data-range="all">
+        <span>📋</span> ทั้งหมด
+      </button>
+    </div>
+
+    <div class="filter-form">
+      <input type="date" id="dateFrom" />
+      <input type="date" id="dateTo" />
+      <select id="catFilter">
+        <option value="">ทุกหมวดหมู่</option>
+        ${categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+      </select>
+      <button class="btn-search" id="btnSearch"><span>🔍</span> ค้นหา</button>
+    </div>
+
+    <div id="listContent"></div>
+
+    <a href="#add" class="fab" title="เพิ่มรายการ">+</a>
+  `;
+
+  // ตั้งค่า date inputs ตาม filter ปัจจุบัน
+  const { from, to } = getDateRange();
+  const dateFromEl = document.getElementById('dateFrom');
+  const dateToEl = document.getElementById('dateTo');
+  if (from) dateFromEl.value = from;
+  if (to) dateToEl.value = to;
+
+  // ปุ่ม filter tab
+  document.querySelectorAll('.filter-tab').forEach(btn => {
+    btn.onclick = () => {
+      listState.range = btn.dataset.range;
+      listState.dateFrom = null;
+      listState.dateTo = null;
+      listState.categoryId = null;
+      renderList(root);
+    };
+  });
+
+  // ปุ่มค้นหา
+  document.getElementById('btnSearch').onclick = () => {
+    listState.dateFrom = dateFromEl.value || null;
+    listState.dateTo = dateToEl.value || null;
+    listState.categoryId = document.getElementById('catFilter').value || null;
+    listState.range = 'custom';
+    loadList();
+  };
+
+  await loadList();
+
+  async function loadList() {
+    const content = document.getElementById('listContent');
+    content.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+
+    let query = db
+      .from('expenses')
+      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .order('expense_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    let dFrom = listState.dateFrom;
+    let dTo = listState.dateTo;
+    if (listState.range === '7' || listState.range === '30') {
+      const r = getDateRange();
+      dFrom = r.from;
+      dTo = r.to;
+    }
+
+    if (dFrom) query = query.gte('expense_date', dFrom);
+    if (dTo) query = query.lte('expense_date', dTo);
+    if (listState.categoryId) query = query.eq('category_id', listState.categoryId);
+
+    const { data, error } = await query;
+    if (error) {
+      content.innerHTML = `<p class="empty">เกิดข้อผิดพลาด: ${error.message}</p>`;
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      content.innerHTML = `
+        <div class="empty-state">
+          <span class="emoji">📭</span>
+          <p>ยังไม่มีรายการในช่วงเวลานี้</p>
+        </div>
+      `;
+      return;
+    }
+
+    const groups = {};
+    data.forEach(e => {
+      if (!groups[e.expense_date]) groups[e.expense_date] = [];
+      groups[e.expense_date].push(e);
+    });
+
+    const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+    content.innerHTML = sortedDates.map(date => {
+      const items = groups[date];
+      const total = items.reduce((s, e) => s + Number(e.amount), 0);
+
+      return `
+        <div class="date-group">
+          <div class="date-group-header">
+            <div class="date-label">
+              <span>📅</span>
+              <span>${formatThaiDate(date)}</span>
+            </div>
+            <div class="date-total">฿${total.toLocaleString()}</div>
+          </div>
+          <div class="expense-list">
+            ${items.map(e => {
+              const catName = e.categories?.name || 'ไม่ระบุ';
+              const cls = CATEGORY_CLASS[catName] || 'other';
+              const payIcon = e.payment_methods?.icon || '💳';
+              const payName = e.payment_methods?.name || '';
+              const note = e.note ? ` • ${e.note}` : '';
+
+              return `
+                <div class="expense-item" data-id="${e.id}">
+                  <div class="cat-icon ${cls}">${e.categories?.icon || '📁'}</div>
+                  <div class="body">
+                    <div class="cat-name">
+                      <span class="emoji">${e.categories?.icon || '📁'}</span>
+                      ${catName}
+                    </div>
+                    <div class="meta">
+                      <span>${payIcon}</span>
+                      <span>${payName}${note}</span>
+                    </div>
+                  </div>
+                  <div class="right">
+                    <div class="amount">฿${Number(e.amount).toLocaleString()}</div>
+                    <div class="actions">
+                      <button class="action-btn edit" data-edit="${e.id}" title="แก้ไข">✏️</button>
+                      <button class="action-btn delete" data-delete="${e.id}" title="ลบ">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    content.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('ลบรายการนี้?')) return;
+        const { error } = await db.from('expenses').delete().eq('id', btn.dataset.delete);
+        if (error) return alert('ผิดพลาด: ' + error.message);
+        showToast('🗑️ ลบเรียบร้อย');
+        loadList();
+      };
+    });
+
+    content.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const item = data.find(x => x.id === btn.dataset.edit);
+        if (item) openEditModal(item, categories, loadList);
+      };
+    });
+  }
+}
+
+// ===========================================
+// EDIT MODAL
+// ===========================================
+async function openEditModal(expense, categories, onSaved) {
+  const { data: pays } = await db.from('payment_methods').select('*').order('name');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>✏️ แก้ไขรายการ</h3>
+      <form id="editForm">
+        <div class="form-group">
+          <label>จำนวนเงิน (บาท)</label>
+          <input name="amount" type="number" step="0.01" min="0" required
+                 value="${expense.amount}" class="amount-input" />
+        </div>
+
+        <div class="form-group">
+          <label>หมวดหมู่</label>
+          <select name="category_id" required>
+            ${categories.map(c => `
+              <option value="${c.id}" ${c.id === expense.category_id ? 'selected' : ''}>
+                ${c.icon} ${c.name}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>ประเภทการชำระ</label>
+          <select name="payment_method_id" required>
+            ${(pays || []).map(p => `
+              <option value="${p.id}" ${p.id === expense.payment_method_id ? 'selected' : ''}>
+                ${p.icon} ${p.name}
+              </option>
+            `).join('')}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>วันที่</label>
+          <input name="expense_date" type="date" required value="${expense.expense_date}" />
+        </div>
+
+        <div class="form-group">
+          <label>โน้ต</label>
+          <input name="note" type="text" value="${expense.note || ''}" placeholder="ไม่บังคับ" />
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="cancel" id="modalCancel">ยกเลิก</button>
+          <button type="submit" class="save">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#modalCancel').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.querySelector('#editForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(ev.target);
+    const payload = {
+      amount: parseFloat(fd.get('amount')),
+      category_id: fd.get('category_id'),
+      payment_method_id: fd.get('payment_method_id'),
+      expense_date: fd.get('expense_date'),
+      note: fd.get('note') || null
+    };
+
+    const { error } = await db.from('expenses').update(payload).eq('id', expense.id);
+    if (error) return alert('ผิดพลาด: ' + error.message);
+
+    overlay.remove();
+    showToast('✅ แก้ไขเรียบร้อย');
+    if (onSaved) onSaved();
+  });
 }
 
 // ===========================================
@@ -414,7 +727,6 @@ async function renderSettings(root) {
       </div>
     `;
 
-    // Add category
     document.getElementById('catForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -426,7 +738,6 @@ async function renderSettings(root) {
       draw();
     });
 
-    // Add payment method
     document.getElementById('payForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
@@ -438,7 +749,6 @@ async function renderSettings(root) {
       draw();
     });
 
-    // Delete
     root.querySelectorAll('[data-del-cat]').forEach(b => {
       b.onclick = async () => {
         if (!confirm('ลบหมวดนี้?')) return;
@@ -454,7 +764,6 @@ async function renderSettings(root) {
       };
     });
 
-    // Save budgets
     document.getElementById('saveBudgets').onclick = async () => {
       const inputs = root.querySelectorAll('[data-budget-cat]');
       const rows = [];
