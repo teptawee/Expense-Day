@@ -2391,13 +2391,15 @@ h2 {
   color: #f1f5f9;
 
 /* ===========================================
-   COMPARE PAGE (เปรียบเทียบเดือน)
+   COMPARE PAGE (เปรียบเทียบเดือน) — v2
+   ทนกว่าเดิม จัด layout ใหม่
    =========================================== */
+
 .compare-selector {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 10px;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: stretch;
   padding: 16px;
   background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
   border-radius: 18px;
@@ -2406,25 +2408,17 @@ h2 {
   animation: slide-down-fade 0.5s var(--ease-out);
 }
 
-@media (max-width: 480px) {
-  .compare-selector {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-  .compare-selector .vs-badge {
-    justify-self: center;
-  }
-}
-
 .compare-month-input {
+  flex: 1 1 200px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   background: white;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 14px;
   border: 2px solid #bfdbfe;
   transition: all 0.3s var(--ease-out);
+  min-width: 0;
 }
 
 .compare-month-input:hover {
@@ -2458,7 +2452,6 @@ h2 {
 .compare-month-input.month-a {
   border-color: #86efac;
 }
-
 .compare-month-input.month-a label {
   color: #16a34a;
 }
@@ -2466,33 +2459,39 @@ h2 {
 .compare-month-input.month-b {
   border-color: #f9a8d4;
 }
-
 .compare-month-input.month-b label {
   color: #db2777;
 }
 
 .vs-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 48px;
   height: 48px;
+  min-width: 48px;
   border-radius: 50%;
   background: var(--gradient-purple);
   color: white;
   font-weight: 800;
   font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   box-shadow: 0 6px 18px rgba(167, 139, 250, 0.4);
-  flex-shrink: 0;
+  align-self: center;
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
-/* Compare Cards */
+/* Compare Cards — side by side */
 .compare-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-bottom: 20px;
+}
+
+@media (min-width: 480px) {
+  .compare-cards {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .compare-card {
@@ -2506,6 +2505,7 @@ h2 {
   box-shadow: var(--shadow-sm);
   transition: all 0.4s var(--ease-out);
   animation: card-enter 0.6s var(--ease-out) backwards;
+  min-width: 0;
 }
 
 .compare-card:hover {
@@ -2523,7 +2523,6 @@ h2 {
 .compare-card.month-a::before {
   background: linear-gradient(90deg, #4ade80, #16a34a);
 }
-
 .compare-card.month-b::before {
   background: linear-gradient(90deg, #f9a8d4, #db2777);
 }
@@ -2538,7 +2537,6 @@ h2 {
 .compare-card.month-a .month-label {
   color: #16a34a;
 }
-
 .compare-card.month-b .month-label {
   color: #db2777;
 }
@@ -2549,7 +2547,7 @@ h2 {
   line-height: 1;
   letter-spacing: -0.5px;
   color: #1e293b;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .compare-card .amount .unit {
@@ -2583,23 +2581,21 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 10px 20px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
-  margin-top: 10px;
+  margin-top: 4px;
 }
 
 .diff-badge.up {
   background: linear-gradient(135deg, #fee2e2, #fecaca);
   color: #dc2626;
 }
-
 .diff-badge.down {
   background: linear-gradient(135deg, #d1fae5, #a7f3d0);
   color: #059669;
 }
-
 .diff-badge.flat {
   background: #f1f5f9;
   color: #64748b;
@@ -2609,7 +2605,7 @@ h2 {
 .cat-compare-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
 }
 
 .cat-compare-item {
@@ -2629,11 +2625,9 @@ h2 {
 .cat-compare-item.increase {
   border-left-color: #ef4444;
 }
-
 .cat-compare-item.decrease {
   border-left-color: #22c55e;
 }
-
 .cat-compare-item.same {
   border-left-color: #94a3b8;
 }
@@ -2642,8 +2636,9 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .cat-compare-name {
@@ -2653,73 +2648,89 @@ h2 {
   font-weight: 700;
   font-size: 14px;
   color: #1e293b;
+  min-width: 0;
 }
 
 .cat-compare-name .icon {
   font-size: 20px;
+  flex-shrink: 0;
 }
 
 .cat-compare-diff {
   font-weight: 800;
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 8px;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .cat-compare-diff.up {
   background: #fee2e2;
   color: #dc2626;
 }
-
 .cat-compare-diff.down {
   background: #d1fae5;
   color: #059669;
 }
-
 .cat-compare-diff.flat {
   background: #f1f5f9;
   color: #64748b;
 }
 
+/* Bars: ใช้ grid 3 col: label / bar / value */
 .cat-compare-bars {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .cat-compare-bar {
   display: grid;
-  grid-template-columns: 30px 1fr auto;
+  grid-template-columns: 20px 1fr 90px;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
 }
 
 .cat-compare-bar .label {
-  font-weight: 700;
+  font-weight: 800;
   font-size: 11px;
   color: #64748b;
+  text-align: center;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 2px 0;
+}
+
+.cat-compare-bar.a .label {
+  background: #dcfce7;
+  color: #16a34a;
+}
+.cat-compare-bar.b .label {
+  background: #fce7f3;
+  color: #db2777;
 }
 
 .cat-compare-bar .bar-wrap {
-  height: 8px;
+  height: 10px;
   background: #f1f5f9;
   border-radius: 999px;
   overflow: hidden;
   position: relative;
+  min-width: 0;
 }
 
 .cat-compare-bar .bar-fill {
   height: 100%;
   border-radius: 999px;
   transition: width 0.8s var(--ease-out);
+  min-width: 2px;
 }
 
 .cat-compare-bar.a .bar-fill {
   background: linear-gradient(90deg, #4ade80, #16a34a);
 }
-
 .cat-compare-bar.b .bar-fill {
   background: linear-gradient(90deg, #f9a8d4, #db2777);
 }
@@ -2727,12 +2738,26 @@ h2 {
 .cat-compare-bar .value {
   font-weight: 700;
   color: #334155;
-  min-width: 60px;
   text-align: right;
   font-size: 12px;
+  white-space: nowrap;
 }
 
-/* Dark mode overrides */
+/* มือถือแคบ — ย่อ value width */
+@media (max-width: 400px) {
+  .cat-compare-bar {
+    grid-template-columns: 20px 1fr 70px;
+    gap: 6px;
+  }
+  .cat-compare-bar .value {
+    font-size: 11px;
+  }
+  .compare-card .amount {
+    font-size: 22px;
+  }
+}
+
+/* ===== Dark mode overrides ===== */
 [data-theme="dark"] .compare-selector {
   background: linear-gradient(135deg, #1e293b 0%, #312e81 100%);
 }
@@ -2749,7 +2774,6 @@ h2 {
 [data-theme="dark"] .compare-month-input.month-a {
   border-color: #166534;
 }
-
 [data-theme="dark"] .compare-month-input.month-a label {
   color: #4ade80;
 }
@@ -2757,7 +2781,6 @@ h2 {
 [data-theme="dark"] .compare-month-input.month-b {
   border-color: #9f1239;
 }
-
 [data-theme="dark"] .compare-month-input.month-b label {
   color: #f9a8d4;
 }
@@ -2794,4 +2817,18 @@ h2 {
 [data-theme="dark"] .cat-compare-bar .value {
   color: #cbd5e1;
 }
-   
+
+[data-theme="dark"] .cat-compare-bar .label {
+  background: #1e293b;
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .cat-compare-bar.a .label {
+  background: #052e16;
+  color: #4ade80;
+}
+
+[data-theme="dark"] .cat-compare-bar.b .label {
+  background: #500724;
+  color: #f9a8d4;
+}
