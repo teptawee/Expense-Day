@@ -6,11 +6,13 @@
   <title>💰 Money Tracker</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=3" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 </head>
 <body>
+
+  <!-- TOP NAVBAR (Desktop เท่านั้น) -->
   <nav class="navbar" id="navbar">
     <div class="navbar-inner">
       <a href="#dashboard" class="brand-center">
@@ -36,6 +38,7 @@
 
   <main id="app"></main>
 
+  <!-- BOTTOM NAV (มือถือ + Tablet เท่านั้น) -->
   <nav class="bottom-nav" id="bottomNav">
     <a href="#dashboard" data-route="dashboard" class="bottom-link"><span>📊</span><small>Dashboard</small></a>
     <a href="#add" data-route="add" class="bottom-link"><span>➕</span><small>บันทึก</small></a>
@@ -43,6 +46,6 @@
     <a href="#settings" data-route="settings" class="bottom-link"><span>⚙️</span><small>ตั้งค่า</small></a>
   </nav>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
