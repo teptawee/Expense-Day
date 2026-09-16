@@ -161,7 +161,6 @@ window.addEventListener('load', router);
 // DASHBOARD
 // ===========================================
 async function renderDashboard(root) {
-  // แสดง Skeleton ระหว่างโหลด
   root.innerHTML = skeletonSummary() + skeletonCharts() +
     '<div class="skeleton skeleton-chart" style="margin-bottom:16px"></div>' +
     '<div class="skeleton skeleton-chart"></div>';
@@ -190,22 +189,18 @@ async function renderDashboard(root) {
 
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
-  // วันนี้
   const todayStr = now.toISOString().slice(0,10);
   const totalDay = sum(expenses.filter(e => e.expense_date === todayStr));
 
-  // เมื่อวาน
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0,10);
   const totalYesterday = sum(expenses.filter(e => e.expense_date === yesterdayStr));
 
-  // สัปดาห์นี้
   const weekStart = startOf('week');
   const weekEnd = endOf('week');
   const totalWeek = sum(expenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
-  // สัปดาห์ก่อน
   const prevWeekStart = new Date(now);
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekStartStr = startOf('week', prevWeekStart);
@@ -214,10 +209,8 @@ async function renderDashboard(root) {
     e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
   ));
 
-  // เดือนนี้
   const totalMonth = sum(expenses);
 
-  // เดือนก่อน
   const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
   const prevMonthStr = prevMonthDate.toISOString().slice(0,7);
   const prevMonthStart = prevMonthStr + '-01';
@@ -233,13 +226,11 @@ async function renderDashboard(root) {
   const totalPrevMonth = sum(prevMonthExp || []);
   const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
 
-  // เฉลี่ย/วัน
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
   const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
   const forecast = avgPerDay * daysInMonth;
 
-  // เทียบ %
   function calcChange(current, prev) {
     if (prev === 0 && current === 0) return { pct: 0, type: 'flat' };
     if (prev === 0 && current > 0) return { pct: 100, type: 'new' };
@@ -334,15 +325,18 @@ async function renderDashboard(root) {
       <div class="budget-section-title">🎯 สถานะวงเงินคงเหลือแต่ละหมวด</div>
       <div id="budgetsSection"></div>
     </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="budget-section-title" style="margin-bottom:12px">🕐 รายการล่าสุด 3 วัน</div>
+      <div id="recentSection"></div>
+    </div>
   `;
 
-  // Month Picker
   document.getElementById('monthPicker').addEventListener('change', (e) => {
     currentMonth = e.target.value;
     renderDashboard(root);
   });
 
-  // ปุ่มปัจจุบัน
   const btnCurrent = document.getElementById('btnCurrent');
   if (btnCurrent) {
     btnCurrent.onclick = () => {
@@ -351,9 +345,6 @@ async function renderDashboard(root) {
     };
   }
 
-  // ===========================================
-  // Aggregate Data
-  // ===========================================
   const byCategory = {};
   expenses.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -375,9 +366,6 @@ async function renderDashboard(root) {
     return { label, total };
   });
 
-  // ===========================================
-  // Charts
-  // ===========================================
   const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
   const chartDefaults = {
@@ -626,6 +614,138 @@ async function renderDashboard(root) {
       };
     });
   }
+
+  // ===========================================
+  // รายการล่าสุด 3 วัน
+  // ===========================================
+  async function loadRecent3Days() {
+    const section = document.getElementById('recentSection');
+    if (!section) return;
+
+    const today = new Date();
+    const from3Days = new Date(today);
+    from3Days.setDate(from3Days.getDate() - 2);
+
+    const fromStr = from3Days.toISOString().slice(0,10);
+    const toStr = today.toISOString().slice(0,10);
+
+    const { data, error } = await db
+      .from('expenses')
+      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .gte('expense_date', fromStr)
+      .lte('expense_date', toStr)
+      .order('expense_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error || !data || data.length === 0) {
+      section.innerHTML = `
+        <div class="empty-state" style="padding:30px 20px">
+          <span class="emoji" style="font-size:48px">📭</span>
+          <p>ไม่มีรายการ 3 วันล่าสุด</p>
+        </div>
+      `;
+      return;
+    }
+
+    const groups = {};
+    data.forEach(e => {
+      if (!groups[e.expense_date]) groups[e.expense_date] = [];
+      groups[e.expense_date].push(e);
+    });
+
+    const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+
+    const todayStr = today.toISOString().slice(0,10);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().slice(0,10);
+
+    section.innerHTML = sortedDates.map((date, gIdx) => {
+      const items = groups[date];
+      const total = items.reduce((s, e) => s + Number(e.amount), 0);
+
+      let dayLabel, dayIcon;
+      if (date === todayStr) {
+        dayLabel = 'วันนี้';
+        dayIcon = '☀️';
+      } else if (date === yesterdayStr) {
+        dayLabel = 'เมื่อวาน';
+        dayIcon = '🌙';
+      } else {
+        dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('th-TH', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'short'
+        });
+        dayIcon = '📅';
+      }
+
+      return `
+        <div class="date-group" style="animation-delay:${gIdx * 0.1}s;margin-bottom:14px">
+          <div class="date-group-header" style="padding:6px 8px;margin-bottom:6px">
+            <div class="date-label">
+              <span>${dayIcon}</span>
+              <span>${dayLabel}</span>
+            </div>
+            <div class="date-total">฿${total.toLocaleString()}</div>
+          </div>
+          <div class="expense-list">
+            ${items.map(e => {
+              const catName = e.categories?.name || 'ไม่ระบุ';
+              const cls = CATEGORY_CLASS[catName] || 'other';
+              const payIcon = e.payment_methods?.icon || '💳';
+              const payName = e.payment_methods?.name || '';
+              const note = e.note ? ` • ${e.note}` : '';
+
+              return `
+                <div class="expense-item" data-id="${e.id}" style="padding:12px 14px">
+                  <div class="cat-icon ${cls}" style="width:42px;height:42px;font-size:20px">
+                    ${e.categories?.icon || '📁'}
+                  </div>
+                  <div class="body">
+                    <div class="cat-name" style="font-size:14px">
+                      <span class="emoji">${e.categories?.icon || '📁'}</span>
+                      ${catName}
+                    </div>
+                    <div class="meta">
+                      <span>${payIcon}</span>
+                      <span>${payName}${note}</span>
+                    </div>
+                  </div>
+                  <div class="right">
+                    <div class="amount" style="font-size:16px">฿${Number(e.amount).toLocaleString()}</div>
+                    <div class="actions">
+                      <button class="action-btn edit" data-edit="${e.id}" title="แก้ไข" style="width:30px;height:30px">✏️</button>
+                      <button class="action-btn delete" data-delete="${e.id}" title="ลบ" style="width:30px;height:30px">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    section.querySelectorAll('[data-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const item = data.find(x => x.id === btn.dataset.edit);
+        if (item) openEditModal(item, categories, () => renderDashboard(root));
+      };
+    });
+
+    section.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('ลบรายการนี้?')) return;
+        const { error } = await db.from('expenses').delete().eq('id', btn.dataset.delete);
+        if (error) return alert('ผิดพลาด: ' + error.message);
+        showToast('🗑️ ลบเรียบร้อย');
+        loadRecent3Days();
+      };
+    });
+  }
+
+  loadRecent3Days();
 }
 
 // ===========================================
@@ -1039,35 +1159,8 @@ async function renderAdd(root) {
 
         <button type="submit" class="btn btn-primary">💾 บันทึก</button>
       </form>
-
-      <div id="recent" style="margin-top:24px"></div>
     </div>
   `;
-
-  const loadRecent = async () => {
-    const { data } = await db
-      .from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    document.getElementById('recent').innerHTML = !data?.length ? '' : `
-      <h3 style="font-size:14px;color:#64748b;margin-bottom:10px;font-weight:700">📌 รายการล่าสุด</h3>
-      <div class="card" style="padding:10px">
-        ${data.map(e => `
-          <div class="list-item">
-            <span class="icon">${e.categories?.icon || '📁'}</span>
-            <div class="info">
-              <div class="name">${e.categories?.name || '-'}</div>
-              <div class="meta">${e.expense_date} · ${e.payment_methods?.icon || ''} ${e.payment_methods?.name || ''}</div>
-            </div>
-            <div style="font-weight:700;color:#dc2626">-฿${Number(e.amount).toLocaleString()}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  };
-  loadRecent();
 
   document.getElementById('expForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -1095,7 +1188,6 @@ async function renderAdd(root) {
 
     ev.target.reset();
     document.querySelector('[name=expense_date]').value = today;
-    await loadRecent();
     showToast('✅ บันทึกสำเร็จ!');
 
     btn.innerHTML = originalText;
