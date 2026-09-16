@@ -141,8 +141,8 @@ async function renderDashboard(root) {
     </div>
 
     <div class="card">
-      <h3>🎯 วงเงินคงเหลือแต่ละหมวด (เดือนนี้)</h3>
-      <div id="budgets"></div>
+      <div class="budget-section-title">🎯 สถานะวงเงินคงเหลือแต่ละหมวด</div>
+      <div id="budgetsSection"></div>
     </div>
   `;
 
@@ -197,30 +197,121 @@ async function renderDashboard(root) {
     }
   });
 
-  const budEl = document.getElementById('budgets');
-  if (!budgets.length) {
-    budEl.innerHTML = '<p class="empty">ยังไม่ได้ตั้งวงเงิน — ไปที่หน้าตั้งค่าเพื่อเพิ่ม</p>';
-  } else {
-    budEl.innerHTML = budgets.map(b => {
-      const cat = categories.find(c => c.id === b.category_id);
-      const used = byCategory[cat?.name] || 0;
-      const pct = Math.min(100, (used / b.limit_amount) * 100);
-      const remain = b.limit_amount - used;
-      const remainPct = Math.max(0, 100 - pct);
-      const cls = pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : 'ok';
+  // ===========================================
+  // วงเงินคงเหลือแต่ละหมวด (แบบการ์ด)
+  // ===========================================
+  const budSection = document.getElementById('budgetsSection');
 
-      return `
-        <div class="budget-item">
-          <div class="budget-header">
-            <span>${cat?.icon || '📁'} ${cat?.name || 'ไม่ระบุ'}</span>
-            <span>${fmt(used)} / ${fmt(b.limit_amount)} 
-              <strong style="color:${remain >= 0 ? '#059669' : '#dc2626'}">(${remainPct.toFixed(0)}%)</strong>
-            </span>
-          </div>
-          <div class="budget-bar"><div class="budget-fill ${cls}" style="width:${pct}%"></div></div>
-        </div>
-      `;
-    }).join('');
+  if (!budgets.length) {
+    budSection.innerHTML = '<p class="empty">ยังไม่ได้ตั้งวงเงิน — ไปที่หน้าตั้งค่าเพื่อเพิ่ม</p>';
+  } else {
+    budSection.innerHTML = `
+      <div class="budget-cards-grid">
+        ${budgets.map(b => {
+          const cat = categories.find(c => c.id === b.category_id);
+          if (!cat) return '';
+
+          const used = byCategory[cat.name] || 0;
+          const limit = Number(b.limit_amount);
+          const pctUsed = limit > 0 ? (used / limit) * 100 : 0;
+          const remain = limit - used;
+          const remainPct = Math.max(0, 100 - pctUsed);
+
+          let statusClass = 'ok';
+          if (remainPct <= 0) statusClass = 'over';
+          else if (remainPct <= 10) statusClass = 'danger';
+          else if (remainPct <= 30) statusClass = 'warn';
+
+          const barWidth = Math.min(100, pctUsed);
+
+          const usedFmt = used.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          const limitFmt = limit.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+          const remainFmt = remain.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+          return `
+            <div class="budget-card ${statusClass}">
+              ${remainPct <= 0 ? '<span class="confetti">🎉</span>' : ''}
+
+              <div class="budget-card-header">
+                <div class="budget-card-title">
+                  <div class="budget-card-icon">${cat.icon}</div>
+                  <div>
+                    <div class="budget-card-name" title="${cat.name}">${cat.name}</div>
+                    <div class="budget-card-subtitle">คงเหลือ ${remainPct.toFixed(0)}%</div>
+                  </div>
+                </div>
+
+                <div class="budget-card-actions">
+                  <button class="budget-action-btn edit" 
+                          data-budget-edit="${cat.id}" 
+                          data-budget-amount="${limit}"
+                          title="แก้ไขวงเงิน">✏️</button>
+                  <button class="budget-action-btn add" 
+                          data-budget-add="${cat.id}"
+                          title="เพิ่มรายการ">➕</button>
+                  <button class="budget-action-btn list" 
+                          data-budget-list="${cat.id}"
+                          title="ดูรายการ">📋</button>
+                </div>
+              </div>
+
+              <div class="budget-pct">
+                <div class="pct-value">${remainPct.toFixed(1)}%</div>
+                <div class="pct-label">คงเหลือ</div>
+              </div>
+
+              <div class="budget-stats">
+                <div class="stat-box">
+                  <div class="stat-label">💸 ใช้ไป</div>
+                  <div class="stat-value used">฿${usedFmt}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">🎯 วงเงิน</div>
+                  <div class="stat-value limit">฿${limitFmt}</div>
+                </div>
+                <div class="stat-box">
+                  <div class="stat-label">🔥 คงเหลือ</div>
+                  <div class="stat-value remain ${remain < 0 ? 'negative' : ''}">฿${remainFmt}</div>
+                </div>
+              </div>
+
+              <div class="budget-card-bar">
+                <div class="bar-fill" style="width:${barWidth}%"></div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    // ปุ่มแก้ไขวงเงิน
+    budSection.querySelectorAll('[data-budget-edit]').forEach(btn => {
+      btn.onclick = () => {
+        const catId = btn.dataset.budgetEdit;
+        const currentAmount = parseFloat(btn.dataset.budgetAmount);
+        const cat = categories.find(c => c.id === catId);
+        openBudgetEditModal(cat, currentAmount, ym, () => renderDashboard(root));
+      };
+    });
+
+    // ปุ่มเพิ่มรายการด่วน
+    budSection.querySelectorAll('[data-budget-add]').forEach(btn => {
+      btn.onclick = () => {
+        sessionStorage.setItem('preselectCategory', btn.dataset.budgetAdd);
+        location.hash = '#add';
+      };
+    });
+
+    // ปุ่มดูรายการของหมวดนี้
+    budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
+      btn.onclick = () => {
+        listState.range = '30';
+        listState.categoryId = btn.dataset.budgetList;
+        listState.dateFrom = null;
+        listState.dateTo = null;
+        location.hash = '#list';
+      };
+    });
   }
 }
 
@@ -299,7 +390,7 @@ async function renderList(root) {
       <input type="date" id="dateTo" />
       <select id="catFilter">
         <option value="">ทุกหมวดหมู่</option>
-        ${categories.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+        ${categories.map(c => `<option value="${c.id}" ${listState.categoryId === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}
       </select>
       <button class="btn-search" id="btnSearch"><span>🔍</span> ค้นหา</button>
     </div>
@@ -309,14 +400,12 @@ async function renderList(root) {
     <a href="#add" class="fab" title="เพิ่มรายการ">+</a>
   `;
 
-  // ตั้งค่า date inputs ตาม filter ปัจจุบัน
   const { from, to } = getDateRange();
   const dateFromEl = document.getElementById('dateFrom');
   const dateToEl = document.getElementById('dateTo');
   if (from) dateFromEl.value = from;
   if (to) dateToEl.value = to;
 
-  // ปุ่ม filter tab
   document.querySelectorAll('.filter-tab').forEach(btn => {
     btn.onclick = () => {
       listState.range = btn.dataset.range;
@@ -327,7 +416,6 @@ async function renderList(root) {
     };
   });
 
-  // ปุ่มค้นหา
   document.getElementById('btnSearch').onclick = () => {
     listState.dateFrom = dateFromEl.value || null;
     listState.dateTo = dateToEl.value || null;
@@ -536,6 +624,67 @@ async function openEditModal(expense, categories, onSaved) {
 }
 
 // ===========================================
+// BUDGET EDIT MODAL (Quick edit วงเงิน)
+// ===========================================
+async function openBudgetEditModal(category, currentAmount, ym, onSaved) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay budget-edit-modal';
+
+  const now = new Date();
+  const monthLabel = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>✏️ แก้ไขวงเงิน</h3>
+
+      <div class="current-info">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+          <span style="font-size:24px;">${category.icon}</span>
+          <strong style="font-size:15px; color:#1e293b;">${category.name}</strong>
+        </div>
+        <div>เดือน: <strong>${monthLabel}</strong></div>
+      </div>
+
+      <form id="budgetEditForm">
+        <div class="form-group">
+          <label>วงเงินใหม่ (บาท)</label>
+          <input name="limit" type="number" min="0" step="100" required
+                 value="${currentAmount}" class="amount-input" autofocus />
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="cancel" id="budgetEditCancel">ยกเลิก</button>
+          <button type="submit" class="save">💾 บันทึก</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('#budgetEditCancel').onclick = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  overlay.querySelector('#budgetEditForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(ev.target);
+    const newLimit = parseFloat(fd.get('limit'));
+
+    const { error } = await db
+      .from('monthly_budgets')
+      .update({ limit_amount: newLimit })
+      .eq('category_id', category.id)
+      .eq('year_month', ym);
+
+    if (error) return alert('ผิดพลาด: ' + error.message);
+
+    overlay.remove();
+    showToast('✅ แก้ไขวงเงินเรียบร้อย');
+    if (onSaved) onSaved();
+  });
+}
+
+// ===========================================
 // ADD EXPENSE
 // ===========================================
 async function renderAdd(root) {
@@ -550,6 +699,9 @@ async function renderAdd(root) {
   const pays = payRes.data || [];
   const today = new Date().toISOString().slice(0,10);
 
+  const preselectCat = sessionStorage.getItem('preselectCategory');
+  sessionStorage.removeItem('preselectCategory');
+
   root.innerHTML = `
     <div style="max-width:520px;margin:0 auto">
       <h2>➕ บันทึกค่าใช้จ่าย</h2>
@@ -563,7 +715,7 @@ async function renderAdd(root) {
           <label>หมวดหมู่</label>
           <select name="category_id" required>
             <option value="">-- เลือกหมวดหมู่ --</option>
-            ${cats.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')}
+            ${cats.map(c => `<option value="${c.id}" ${preselectCat === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}
           </select>
         </div>
 
