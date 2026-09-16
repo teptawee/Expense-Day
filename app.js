@@ -1,8 +1,8 @@
 // ===========================================
 // ⚠️ แก้ 2 บรรทัดนี้ก่อนอัปโหลด!
 // ===========================================
-const SUPABASE_URL = 'https://gzorqanbqwcnvohfywog.supabase.co';
-const SUPABASE_ANON_KEY = 'ใส่ anon key ของคุณที่นี่';
+const SUPABASE_URL = 'https://gzorqanbqwcnvohfywog.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6b3JxYW5icXdjbnZvaGZ5d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MjgzNjcsImV4cCI6MjEwNTEwNDM2N30.NyQAg9LhgCXHKf-ddYjCUkHFQ94Tw8j3JA9bdpxgs7I';
 // ===========================================
 
 const { createClient } = supabase;
