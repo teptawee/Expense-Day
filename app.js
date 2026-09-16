@@ -132,8 +132,12 @@ let compareMonths = (() => {
   const b = localMonthStr(now);
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const a = localMonthStr(prevDate);
-  return { a, b }; // a = เดือนก่อน, b = เดือนปัจจุบัน
+  return { a, b };
 })();
+
+// เก็บประวัติการแจ้งเตือน
+let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+let notifPanelOpen = false;
 
 let listState = {
   range: '7',
@@ -631,7 +635,7 @@ async function renderDashboard(root) {
       };
     });
 
-    budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
+       budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
       btn.onclick = () => {
         listState.range = '30';
         listState.categoryId = btn.dataset.budgetList;
@@ -640,6 +644,23 @@ async function renderDashboard(root) {
         location.hash = '#list';
       };
     });
+
+    // 🔔 ตรวจสอบงบประมาณ + แสดงการแจ้งเตือน
+    const alerts = await checkBudgetAlerts(budgets, byCategory, categories);
+
+    // แสดง Alert Banner เหนือ Month Selector
+    if (alerts.length > 0) {
+      const bannerHTML = renderAlertBanner(alerts);
+      const monthSelector = document.querySelector('.month-selector');
+      if (monthSelector) {
+        monthSelector.insertAdjacentHTML('afterend', bannerHTML);
+
+        // ปุ่มปิด banner
+        document.getElementById('alertClose')?.addEventListener('click', () => {
+          document.getElementById('alertBanner')?.remove();
+        });
+      }
+    }
   }
 
   // ===========================================
@@ -2094,3 +2115,315 @@ async function renderCompare(root) {
     }
   });
 }
+
+// ===========================================
+// NOTIFICATIONS & ALERTS
+// ===========================================
+
+/**
+ * ขออนุญาต Browser Notification
+ */
+async function requestNotificationPermission() {
+  if (!('Notification' in window)) return false;
+  if (Notification.permission === 'granted') return true;
+  if (Notification.permission === 'denied') return false;
+
+  const permission = await Notification.requestPermission();
+  return permission === 'granted';
+}
+
+/**
+ * แสดง Browser Notification
+ */
+function showBrowserNotification(title, body, type = 'warn') {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  const icons = {
+    warn: '⚠️',
+    danger: '🔴',
+    over: '🚨'
+  };
+
+  try {
+    new Notification(`${icons[type]} ${title}`, {
+      body: body,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">💰</text></svg>',
+      tag: `budget-${type}-${Date.now()}`,
+      requireInteraction: type === 'over'
+    });
+  } catch (err) {
+    console.warn('Notification error:', err);
+  }
+}
+
+/**
+ * บันทึกการแจ้งเตือน
+ */
+function saveNotification({ title, message, type }) {
+  const notif = {
+    id: Date.now().toString(),
+    title,
+    message,
+    type,
+    time: new Date().toISOString(),
+    read: false
+  };
+
+  notifications.unshift(notif);
+  // เก็บไว้ 50 อันล่าสุด
+  if (notifications.length > 50) {
+    notifications = notifications.slice(0, 50);
+  }
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  updateNotifBadge();
+}
+
+/**
+ * อัปเดต Badge
+ */
+function updateNotifBadge() {
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  ['notifBadge', 'notifBadgeMobile'].forEach(id => {
+    const badge = document.getElementById(id);
+    if (!badge) return;
+    if (unreadCount > 0) {
+      badge.textContent = unreadCount > 9 ? '9+' : unreadCount;
+      badge.style.display = 'flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  });
+
+  const btn = document.getElementById('notifToggle');
+  if (btn) btn.classList.toggle('active', unreadCount > 0);
+}
+
+/**
+ * ตรวจสอบงบประมาณ — เรียกหลังโหลด Dashboard
+ * @param {Array} budgets - รายการงบประมาณ
+ * @param {Object} byCategory - ยอดใช้จ่ายตามหมวด
+ * @param {Array} categories - รายการหมวดหมู่
+ */
+async function checkBudgetAlerts(budgets, byCategory, categories) {
+  const alerts = [];
+
+  budgets.forEach(b => {
+    const cat = categories.find(c => c.id === b.category_id);
+    if (!cat) return;
+
+    const used = byCategory[cat.name] || 0;
+    const limit = Number(b.limit_amount);
+    if (limit <= 0) return;
+
+    const pct = (used / limit) * 100;
+
+    if (pct >= 100) {
+      alerts.push({
+        type: 'over',
+        icon: '🚨',
+        title: 'เกินวงเงินแล้ว!',
+        message: `${cat.icon} ${cat.name}: ฿${used.toLocaleString()} / ฿${limit.toLocaleString()} (${pct.toFixed(0)}%)`,
+        categoryId: cat.id
+      });
+    } else if (pct >= 90) {
+      alerts.push({
+        type: 'danger',
+        icon: '🔴',
+        title: 'ใกล้เต็มวงเงิน!',
+        message: `${cat.icon} ${cat.name}: ใช้ไป ${pct.toFixed(0)}% ของวงเงิน`,
+        categoryId: cat.id
+      });
+    } else if (pct >= 70) {
+      alerts.push({
+        type: 'warn',
+        icon: '⚠️',
+        title: 'ใช้จ่ายใกล้ถึง 70%',
+        message: `${cat.icon} ${cat.name}: ใช้ไป ${pct.toFixed(0)}% ของวงเงิน`,
+        categoryId: cat.id
+      });
+    }
+  });
+
+  // บันทึกการแจ้งเตือนใหม่ (ไม่ซ้ำในวันเดียวกัน)
+  const todayStr = localDateStr(new Date());
+  const existingToday = notifications.filter(n =>
+    n.time.startsWith(todayStr) &&
+    n.type === 'over' // แจ้งเฉพาะ over ไม่ให้ spam
+  );
+
+  alerts.forEach(alert => {
+    // ถ้าเป็น over และยังไม่แจ้งวันนี้ → แจ้ง
+    if (alert.type === 'over') {
+      const alreadyNotified = existingToday.some(
+        n => n.message.includes(alert.message.split(':')[0])
+      );
+
+      if (!alreadyNotified) {
+        saveNotification(alert);
+
+        // แสดง Toast
+        showAlertToast(alert);
+
+        // แสดง Browser Notification
+        showBrowserNotification(alert.title, alert.message, alert.type);
+      }
+    }
+  });
+
+  return alerts;
+}
+
+/**
+ * แสดง Toast แจ้งเตือน (มีสี)
+ */
+function showAlertToast(alert) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+
+  const t = document.createElement('div');
+  t.className = `toast ${alert.type}`;
+  t.innerHTML = `${alert.icon} <span>${alert.title}</span>`;
+  document.body.appendChild(t);
+
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.3s, transform 0.3s';
+    t.style.opacity = '0';
+    t.style.transform = 'translate(-50%, -20px)';
+    setTimeout(() => t.remove(), 300);
+  }, 3500);
+}
+
+/**
+ * สร้าง Alert Banner สำหรับแสดงบน Dashboard
+ */
+function renderAlertBanner(alerts) {
+  if (!alerts.length) return '';
+
+  // จัดระดับสูงสุด
+  const hasOver = alerts.some(a => a.type === 'over');
+  const hasDanger = alerts.some(a => a.type === 'danger');
+  const bannerLevel = hasOver ? 'over' : hasDanger ? 'danger' : 'warn';
+
+  const bannerIcon = hasOver ? '🚨' : hasDanger ? '🔴' : '⚠️';
+  const bannerTitle = hasOver ? 'เกินวงเงิน!'
+    : hasDanger ? 'ใกล้เต็มวงเงิน!'
+    : 'ใช้จ่ายใกล้ถึงเกณฑ์';
+
+  const topAlerts = alerts.slice(0, 3);
+  const moreCount = alerts.length - topAlerts.length;
+
+  return `
+    <div class="alert-banner ${bannerLevel}" id="alertBanner">
+      <div class="alert-icon">${bannerIcon}</div>
+      <div class="alert-body">
+        <div class="alert-title">${bannerTitle}</div>
+        <div class="alert-list">
+          ${topAlerts.map(a => `
+            <span class="alert-chip">
+              ${a.icon} ${a.message.split(':')[0].replace(/^[^\s]+\s/, '')}
+            </span>
+          `).join('')}
+          ${moreCount > 0 ? `<span class="alert-chip">+${moreCount} อื่นๆ</span>` : ''}
+        </div>
+      </div>
+      <button class="alert-close" id="alertClose" title="ปิด">✕</button>
+    </div>
+  `;
+}
+
+/**
+ * แสดง Notification Panel
+ */
+function renderNotifPanel() {
+  const existing = document.querySelector('.notif-panel');
+  if (existing) {
+    existing.remove();
+    notifPanelOpen = false;
+    return;
+  }
+
+  // mark all read
+  notifications.forEach(n => n.read = true);
+  localStorage.setItem('notifications', JSON.stringify(notifications));
+  updateNotifBadge();
+
+  const panel = document.createElement('div');
+  panel.className = 'notif-panel';
+  panel.innerHTML = `
+    <div class="notif-panel-header">
+      <h4>🔔 การแจ้งเตือน</h4>
+      <button class="clear-btn" id="clearNotifs">ล้างทั้งหมด</button>
+    </div>
+    <div class="notif-list">
+      ${notifications.length === 0
+        ? '<div class="notif-empty">ยังไม่มีการแจ้งเตือน</div>'
+        : notifications.slice(0, 20).map(n => `
+          <div class="notif-item ${n.type}">
+            <span class="notif-icon">${n.type === 'over' ? '🚨' : n.type === 'danger' ? '🔴' : '⚠️'}</span>
+            <div class="notif-body">
+              <div class="notif-title">${n.title}</div>
+              <div class="notif-time">${new Date(n.time).toLocaleString('th-TH', {
+                day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+              })}</div>
+            </div>
+          </div>
+        `).join('')
+      }
+    </div>
+  `;
+
+  document.body.appendChild(panel);
+  notifPanelOpen = true;
+
+  // Clear button
+  panel.querySelector('#clearNotifs').onclick = () => {
+    notifications = [];
+    localStorage.setItem('notifications', JSON.stringify(notifications));
+    updateNotifBadge();
+    panel.remove();
+    notifPanelOpen = false;
+    showToast('🗑️ ล้างการแจ้งเตือนแล้ว');
+  };
+
+  // ปิดเมื่อคลิกนอกจาก panel
+  setTimeout(() => {
+    const closeOnOutside = (e) => {
+      if (!panel.contains(e.target) &&
+          !e.target.closest('.notif-toggle') &&
+          !e.target.closest('.notif-toggle-mobile')) {
+        panel.remove();
+        notifPanelOpen = false;
+        document.removeEventListener('click', closeOnOutside);
+      }
+    };
+    document.addEventListener('click', closeOnOutside);
+  }, 100);
+}
+
+/**
+ * เริ่มต้นปุ่มแจ้งเตือน
+ */
+function initNotifications() {
+  const btnDesktop = document.getElementById('notifToggle');
+  const btnMobile = document.getElementById('notifToggleMobile');
+
+  const handleClick = async () => {
+    // ขอ permission ตอนคลิกครั้งแรก
+    if ('Notification' in window && Notification.permission === 'default') {
+      const granted = await requestNotificationPermission();
+      if (granted) {
+        showToast('🔔 เปิดการแจ้งเตือนแล้ว');
+      }
+    }
+    renderNotifPanel();
+  };
+
+  if (btnDesktop) btnDesktop.addEventListener('click', handleClick);
+  if (btnMobile) btnMobile.addEventListener('click', handleClick);
+
+  updateNotifBadge();
+}
+
+window.addEventListener('load', initNotifications);
