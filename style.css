@@ -17,19 +17,23 @@ body {
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
-  padding-bottom: 80px;
+  padding-bottom: 80px; /* เว้นให้ bottom nav มือถือ */
+}
+
+@media (min-width: 768px) {
+  body { padding-bottom: 24px; } /* Desktop ไม่ต้องเว้น */
 }
 
 /* ===========================================
    NAVBAR & BOTTOM NAVIGATION
    Breakpoint เดียว: 768px
-   < 768px  → Bottom nav (มือถือ + tablet)
-   ≥ 768px  → Top navbar (desktop)
+   < 768px → Bottom nav
+   ≥ 768px → Top navbar
    =========================================== */
 
-/* -------- TOP NAVBAR (Desktop เท่านั้น) -------- */
+/* ---------- TOP NAVBAR (Desktop) ---------- */
 .navbar {
-  display: none;               /* ซ่อนโดยค่าเริ่มต้น */
+  display: none; /* ซ่อนบนมือถือ */
   position: sticky;
   top: 0;
   z-index: 40;
@@ -40,7 +44,7 @@ body {
 }
 
 @media (min-width: 768px) {
-  .navbar { display: block; }   /* แสดงเฉพาะ Desktop */
+  .navbar { display: block; }
 }
 
 .navbar-inner {
@@ -104,14 +108,12 @@ body {
   box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
 }
 
-/* -------- BOTTOM NAV (มือถือ + tablet เท่านั้น) -------- */
+/* ---------- BOTTOM NAV (มือถือ + Tablet) ---------- */
 .bottom-nav {
-  display: grid;               /* แสดงโดยค่าเริ่มต้น */
+  display: grid; /* แสดงบนมือถือ */
   grid-template-columns: repeat(4, 1fr);
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   background: white;
   border-top: 1px solid var(--border);
   z-index: 40;
@@ -139,16 +141,26 @@ body {
 .bottom-link span { font-size: 20px; }
 .bottom-link.active { color: #7c3aed; }
 
-/* -------- BODY PADDING -------- */
-/* มือถือ: เว้นที่ให้ bottom-nav */
-body {
-  padding-bottom: 80px;
+/* ===========================================
+   Main Container
+   =========================================== */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
 }
 
-/* Desktop: ไม่ต้องเว้น */
-@media (min-width: 768px) {
-  body { padding-bottom: 24px; }
+/* ===========================================
+   Cards
+   =========================================== */
+.card {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
+
 /* ===========================================
    MONTH SELECTOR
    =========================================== */
@@ -172,9 +184,7 @@ body {
   color: #1e40af;
 }
 
-.month-selector-label .icon {
-  font-size: 18px;
-}
+.month-selector-label .icon { font-size: 18px; }
 
 .month-selector-input {
   display: flex;
@@ -188,7 +198,6 @@ body {
   color: #1e3a8a;
   font-size: 14px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.03);
-  position: relative;
 }
 
 .month-selector-input input[type="month"] {
@@ -201,12 +210,6 @@ body {
   color: #1e3a8a;
   cursor: pointer;
   padding: 0;
-  width: auto;
-}
-
-.month-selector-input input[type="month"]::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  opacity: 0.6;
 }
 
 .btn-current {
@@ -230,31 +233,30 @@ body {
   box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
 }
 
-.btn-current:active { transform: scale(0.97); }
-
 /* ===========================================
-   SUMMARY CARDS (ใหม่ - 4 ใบพร้อมเทียบ)
+   SUMMARY CARDS (4 ใบแถวเดียว)
    =========================================== */
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
   margin-bottom: 20px;
 }
 
-@media (min-width: 768px) {
-  .summary-grid { grid-template-columns: repeat(4, 1fr); }
+@media (min-width: 640px) {
+  .summary-grid { gap: 12px; }
 }
 
 .summary-card-new {
   background: white;
   border-radius: 16px;
-  padding: 18px 16px;
+  padding: 16px 12px;
   text-align: center;
   position: relative;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   transition: 0.2s;
+  min-width: 0;
 }
 
 .summary-card-new:hover {
@@ -262,7 +264,6 @@ body {
   box-shadow: 0 8px 20px rgba(0,0,0,0.06);
 }
 
-/* Top colored border */
 .summary-card-new::before {
   content: '';
   position: absolute;
@@ -277,22 +278,23 @@ body {
 .summary-card-new.yellow::before { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
 
 .summary-card-new .card-label {
-  font-size: 13px;
+  font-size: 12px;
   color: #64748b;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.summary-card-new .card-label .icon {
-  font-size: 15px;
-}
+.summary-card-new .card-label .icon { font-size: 14px; flex-shrink: 0; }
 
 .summary-card-new .card-amount {
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 800;
   color: #1e293b;
   line-height: 1;
@@ -301,7 +303,7 @@ body {
 }
 
 .summary-card-new .card-amount .unit {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #64748b;
   margin-left: 2px;
@@ -311,56 +313,36 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 12px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  margin: 8px 0;
-}
-
-.card-compare.up {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.card-compare.down {
-  background: #d1fae5;
-  color: #059669;
-}
-
-.card-compare.new {
-  background: #fef3c7;
-  color: #d97706;
-}
-
-.card-compare.flat {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.summary-card-new .card-prev {
   font-size: 11px;
+  font-weight: 700;
+  margin: 6px 0;
+}
+
+.card-compare.up { background: #fee2e2; color: #dc2626; }
+.card-compare.down { background: #d1fae5; color: #059669; }
+.card-compare.new { background: #fef3c7; color: #d97706; }
+.card-compare.flat { background: #f1f5f9; color: #64748b; }
+
+.summary-card-new .card-prev,
+.summary-card-new .card-forecast {
+  font-size: 10px;
   color: #94a3b8;
   margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.summary-card-new .card-forecast {
-  font-size: 11px;
-  color: #94a3b8;
-  margin-top: 6px;
-}
-
-.summary-card-new .card-forecast strong {
-  color: #7c3aed;
-  font-weight: 700;
-}
+.summary-card-new .card-forecast strong { color: #7c3aed; font-weight: 700; }
 
 .summary-card-new .card-progress {
-  height: 6px;
+  height: 5px;
   background: #f1f5f9;
   border-radius: 999px;
   overflow: hidden;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .summary-card-new .card-progress-fill {
@@ -370,13 +352,27 @@ body {
   transition: width 0.4s;
 }
 
-/* Grid */
+@media (max-width: 480px) {
+  .summary-card-new { padding: 12px 6px; border-radius: 12px; }
+  .summary-card-new .card-label { font-size: 10px; gap: 2px; }
+  .summary-card-new .card-label .icon { font-size: 11px; }
+  .summary-card-new .card-amount { font-size: 15px; }
+  .summary-card-new .card-amount .unit { font-size: 9px; }
+  .summary-card-new .card-compare { font-size: 9px; padding: 2px 6px; gap: 2px; }
+  .summary-card-new .card-prev,
+  .summary-card-new .card-forecast { font-size: 8px; }
+}
+
+/* ===========================================
+   Charts Grid
+   =========================================== */
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr;
   gap: 16px;
   margin-bottom: 16px;
 }
+
 @media (min-width: 768px) {
   .grid-2 { grid-template-columns: 1fr 1fr; }
 }
@@ -393,7 +389,9 @@ body {
   height: 260px;
 }
 
-/* Forms */
+/* ===========================================
+   Forms
+   =========================================== */
 .form-group { margin-bottom: 16px; }
 
 label {
@@ -414,6 +412,7 @@ input, select, textarea {
   background: white;
   transition: 0.15s;
 }
+
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--emerald);
@@ -426,14 +425,15 @@ input:focus, select:focus, textarea:focus {
   color: var(--emerald-dark);
 }
 
-/* Payment radio */
 .payment-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+
 .payment-option { cursor: pointer; }
 .payment-option input { display: none; }
+
 .payment-box {
   padding: 12px;
   border: 2px solid #e2e8f0;
@@ -442,14 +442,18 @@ input:focus, select:focus, textarea:focus {
   font-size: 13px;
   transition: 0.15s;
 }
+
 .payment-box .icon { font-size: 20px; display: block; margin-bottom: 2px; }
+
 .payment-option input:checked + .payment-box {
   border-color: var(--emerald);
   background: #ecfdf5;
   color: var(--emerald-dark);
 }
 
-/* Buttons */
+/* ===========================================
+   Buttons
+   =========================================== */
 .btn {
   padding: 10px 20px;
   border-radius: 12px;
@@ -460,6 +464,7 @@ input:focus, select:focus, textarea:focus {
   transition: 0.15s;
   font-size: 14px;
 }
+
 .btn:active { transform: scale(0.97); }
 
 .btn-primary {
@@ -469,6 +474,7 @@ input:focus, select:focus, textarea:focus {
   padding: 14px;
   font-size: 16px;
 }
+
 .btn-primary:hover { background: #047857; }
 
 .btn-small {
@@ -486,9 +492,12 @@ input:focus, select:focus, textarea:focus {
   opacity: 0;
   transition: 0.15s;
 }
+
 .list-item:hover .btn-danger { opacity: 1; }
 
-/* List */
+/* ===========================================
+   Lists
+   =========================================== */
 .list-item {
   display: flex;
   align-items: center;
@@ -497,14 +506,16 @@ input:focus, select:focus, textarea:focus {
   border-radius: 12px;
   transition: 0.15s;
 }
-.list-item:hover { background: #f8fafc; }
 
+.list-item:hover { background: #f8fafc; }
 .list-item .icon { font-size: 22px; }
 .list-item .info { flex: 1; min-width: 0; }
 .list-item .name { font-weight: 500; font-size: 14px; }
 .list-item .meta { font-size: 11px; color: #94a3b8; }
 
-/* Toast */
+/* ===========================================
+   Toast
+   =========================================== */
 .toast {
   position: fixed;
   top: 80px;
@@ -519,25 +530,36 @@ input:focus, select:focus, textarea:focus {
   z-index: 999;
   animation: fadeIn 0.2s;
 }
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translate(-50%, -10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
-h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-bottom: 16px; }
+h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--emerald-dark);
+  margin-bottom: 16px;
+}
+
 .muted { color: #94a3b8; font-size: 13px; }
 .empty { color: #94a3b8; font-size: 13px; padding: 8px 0; }
+
 .form-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .form-row input:first-child { max-width: 70px; text-align: center; }
 .scroll-box { max-height: 300px; overflow-y: auto; }
+
 .budget-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 12px;
 }
+
 @media (min-width: 640px) {
   .budget-grid { grid-template-columns: 1fr 1fr; }
 }
+
 .budget-input-wrap {
   display: flex;
   align-items: center;
@@ -546,13 +568,14 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   background: #f8fafc;
   border-radius: 12px;
 }
+
 .budget-input-wrap .icon { font-size: 22px; }
 .budget-input-wrap .info { flex: 1; min-width: 0; }
 .budget-input-wrap .name { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
 .budget-input-wrap input { padding: 6px 10px; font-size: 13px; }
 
 /* ===========================================
-   หน้า "รายการทั้งหมด"
+   LIST PAGE
    =========================================== */
 .list-page-header {
   display: flex;
@@ -658,8 +681,8 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   transition: 0.15s;
   font-family: inherit;
 }
+
 .btn-search:hover { background: #f59579; }
-.btn-search:active { transform: scale(0.97); }
 
 .date-group { margin-bottom: 16px; }
 
@@ -736,10 +759,7 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .expense-item .cat-icon.need   { background: #ccfbf1; }
 .expense-item .cat-icon.other  { background: #e5e7eb; }
 
-.expense-item .body {
-  flex: 1;
-  min-width: 0;
-}
+.expense-item .body { flex: 1; min-width: 0; }
 
 .expense-item .cat-name {
   font-weight: 700;
@@ -776,10 +796,7 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   color: #dc2626;
 }
 
-.expense-item .actions {
-  display: flex;
-  gap: 4px;
-}
+.expense-item .actions { display: flex; gap: 4px; }
 
 .expense-item .action-btn {
   width: 32px;
@@ -819,14 +836,18 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   padding: 60px 20px;
   color: #94a3b8;
 }
+
 .empty-state .emoji {
   font-size: 48px;
   margin-bottom: 12px;
   display: block;
 }
+
 .empty-state p { font-size: 14px; }
 
-/* FAB */
+/* ===========================================
+   FAB
+   =========================================== */
 .fab {
   position: fixed;
   bottom: 90px;
@@ -848,17 +869,19 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   transition: 0.2s;
   line-height: 1;
 }
+
 .fab:hover {
   background: #f59579;
   transform: scale(1.05);
 }
-.fab:active { transform: scale(0.95); }
 
 @media (min-width: 768px) {
   .fab { bottom: 30px; right: 30px; }
 }
 
-/* Modal */
+/* ===========================================
+   Modal
+   =========================================== */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -910,18 +933,11 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   font-size: 14px;
 }
 
-.modal-actions .cancel {
-  background: #f1f5f9;
-  color: #64748b;
-}
-
-.modal-actions .save {
-  background: var(--emerald);
-  color: white;
-}
+.modal-actions .cancel { background: #f1f5f9; color: #64748b; }
+.modal-actions .save { background: var(--emerald); color: white; }
 
 /* ===========================================
-   วงเงินคงเหลือแต่ละหมวด
+   Budget Cards
    =========================================== */
 .budget-section-title {
   display: flex;
@@ -969,31 +985,19 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   box-shadow: 0 8px 20px rgba(0,0,0,0.08);
 }
 
-.budget-card.ok {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-}
+.budget-card.ok { background: #f0fdf4; border-color: #bbf7d0; }
 .budget-card.ok .pct-value { color: #16a34a; }
 .budget-card.ok .bar-fill { background: #22c55e; }
 
-.budget-card.warn {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
+.budget-card.warn { background: #fffbeb; border-color: #fde68a; }
 .budget-card.warn .pct-value { color: #f59e0b; }
 .budget-card.warn .bar-fill { background: #fbbf24; }
 
-.budget-card.danger {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
+.budget-card.danger { background: #fef2f2; border-color: #fecaca; }
 .budget-card.danger .pct-value { color: #dc2626; }
 .budget-card.danger .bar-fill { background: #ef4444; }
 
-.budget-card.over {
-  background: #fee2e2;
-  border-color: #fca5a5;
-}
+.budget-card.over { background: #fee2e2; border-color: #fca5a5; }
 .budget-card.over .pct-value { color: #b91c1c; }
 .budget-card.over .bar-fill { background: #dc2626; }
 
@@ -1063,22 +1067,11 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   padding: 0;
 }
 
-.budget-action-btn.edit {
-  background: #ede9fe;
-  color: #7c3aed;
-}
+.budget-action-btn.edit { background: #ede9fe; color: #7c3aed; }
 .budget-action-btn.edit:hover { background: #ddd6fe; }
-
-.budget-action-btn.add {
-  background: #e0e7ff;
-  color: #4f46e5;
-}
+.budget-action-btn.add { background: #e0e7ff; color: #4f46e5; }
 .budget-action-btn.add:hover { background: #c7d2fe; }
-
-.budget-action-btn.list {
-  background: #fef3c7;
-  color: #d97706;
-}
+.budget-action-btn.list { background: #fef3c7; color: #d97706; }
 .budget-action-btn.list:hover { background: #fde68a; }
 
 .budget-pct {
@@ -1168,9 +1161,7 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   50% { transform: translateY(-3px); }
 }
 
-.budget-edit-modal .modal {
-  max-width: 400px;
-}
+.budget-edit-modal .modal { max-width: 400px; }
 
 .budget-edit-modal .current-info {
   background: #f8fafc;
@@ -1181,6 +1172,4 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   color: #64748b;
 }
 
-.budget-edit-modal .current-info strong {
-  color: #1e293b;
-}
+.budget-edit-modal .current-info strong { color: #1e293b; }
