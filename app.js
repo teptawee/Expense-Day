@@ -2,7 +2,7 @@
 // ⚠️ แก้ 2 บรรทัดนี้ก่อนอัปโหลด!
 // ===========================================
 const SUPABASE_URL = 'https://gzorqanbqwcnvohfywog.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6b3JxYW5icXdjbnZvaGZ5d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MjgzNjcsImV4cCI6MjEwNTEwNDM2N30.NyQAg9LhgCXHKf-ddYjCUkHFQ94Tw8j3JA9bdpxgs7I';
+const SUPABASE_ANON_KEY = 'ใส่ anon key ของคุณที่นี่';
 // ===========================================
 
 const { createClient } = supabase;
@@ -15,7 +15,7 @@ const fmt = n => new Intl.NumberFormat('th-TH', {
   style: 'currency', currency: 'THB', maximumFractionDigits: 0
 }).format(n);
 
-// ✅ Helper: สร้าง YYYY-MM-DD จากเวลาท้องถิ่น (ไม่เพี้ยน timezone)
+// ✅ Helper: YYYY-MM-DD จากเวลาท้องถิ่น
 function localDateStr(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -28,15 +28,14 @@ function localMonthStr(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ✅ ใช้ localDateStr แทน toISOString — ไม่เพี้ยน timezone
 // สัปดาห์เริ่มวันจันทร์ (แบบไทย)
 function startOf(unit, baseDate = new Date()) {
   const d = new Date(baseDate);
   d.setHours(0, 0, 0, 0);
 
   if (unit === 'week') {
-    const day = d.getDay(); // 0=อา, 1=จ, ..., 6=ส
-    const diff = day === 0 ? 6 : day - 1; // อาทิตย์ → ย้อน 6, จันทร์ → 0
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
     d.setDate(d.getDate() - diff);
   }
   if (unit === 'month') { d.setDate(1); }
@@ -51,7 +50,7 @@ function endOf(unit, baseDate = new Date()) {
 
   if (unit === 'week') {
     const day = d.getDay();
-    const diff = day === 0 ? 0 : 7 - day; // อาทิตย์ → 0, อื่น → บวกจนถึงอาทิตย์
+    const diff = day === 0 ? 0 : 7 - day;
     d.setDate(d.getDate() + diff);
   }
   if (unit === 'month') { d.setMonth(d.getMonth() + 1, 0); }
@@ -126,7 +125,6 @@ function skeletonForm() {
 let currentMonth = localMonthStr(new Date());
 let currentYear = new Date().getFullYear();
 
-// State สำหรับหน้า compare
 let compareMonths = (() => {
   const now = new Date();
   const b = localMonthStr(now);
@@ -135,9 +133,9 @@ let compareMonths = (() => {
   return { a, b };
 })();
 
-// เก็บประวัติการแจ้งเตือน
 let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
 let notifPanelOpen = false;
+let allSubcategories = [];
 
 let listState = {
   range: '7',
@@ -192,7 +190,7 @@ async function router() {
     await renderAdd(app);
   } else if (route === 'settings') {
     await renderSettings(app);
-    } else if (route === 'year') {
+  } else if (route === 'year') {
     await renderYear(app);
   } else if (route === 'compare') {
     await renderCompare(app);
@@ -216,50 +214,47 @@ async function renderDashboard(root) {
   const monthStart = localDateStr(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
   const monthEnd = localDateStr(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
 
-  // โหลด 60 วันก่อนหน้า → ครอบ "สัปดาห์นี้" และ "สัปดาห์ก่อน" ได้เสมอ
   const loadStart = new Date(monthDate);
   loadStart.setDate(loadStart.getDate() - 60);
   const loadStartStr = localDateStr(loadStart);
 
-  const [expRes, budRes, catRes] = await Promise.all([
+  const [expRes, budRes, catRes, subcatRes] = await Promise.all([
     db.from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .select('*, categories(name,icon), payment_methods(name,icon), subcategories(name,icon)')
       .gte('expense_date', loadStartStr)
       .lte('expense_date', monthEnd)
       .order('expense_date', { ascending: false }),
     db.from('monthly_budgets').select('*').eq('year_month', currentMonth),
-    db.from('categories').select('*')
+    db.from('categories').select('*'),
+    db.from('subcategories').select('*')
   ]);
 
   const allExpenses = expRes.data || [];
-  // กรองเฉพาะเดือนที่เลือก → ใช้กับการ์ด "เดือนนี้" + charts + budgets
   const expenses = allExpenses.filter(e =>
     e.expense_date >= monthStart && e.expense_date <= monthEnd
   );
   const budgets = budRes.data || [];
   const categories = catRes.data || [];
+  const subcats = subcatRes.data || [];
+  allSubcategories = subcats;
 
   const now = new Date();
   const isCurrentMonth = currentMonth === localMonthStr(now);
 
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
-  // วันนี้
   const todayStr = localDateStr(now);
   const totalDay = sum(allExpenses.filter(e => e.expense_date === todayStr));
 
-  // เมื่อวาน
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = localDateStr(yesterday);
   const totalYesterday = sum(allExpenses.filter(e => e.expense_date === yesterdayStr));
 
-  // สัปดาห์นี้ (จันทร์-อาทิตย์)
   const weekStart = startOf('week');
   const weekEnd = endOf('week');
   const totalWeek = sum(allExpenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
-  // สัปดาห์ก่อน
   const prevWeekBase = new Date(now);
   prevWeekBase.setDate(prevWeekBase.getDate() - 7);
   const prevWeekStartStr = startOf('week', prevWeekBase);
@@ -268,10 +263,8 @@ async function renderDashboard(root) {
     e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
   ));
 
-  // เดือนนี้
   const totalMonth = sum(expenses);
 
-  // เดือนก่อน
   const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
   const prevMonthStr = localMonthStr(prevMonthDate);
   const prevMonthStart = prevMonthStr + '-01';
@@ -286,7 +279,6 @@ async function renderDashboard(root) {
   const totalPrevMonth = sum(prevMonthExp || []);
   const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
 
-  // เฉลี่ย/วัน + คาดการณ์
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
   const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
@@ -407,7 +399,7 @@ async function renderDashboard(root) {
   }
 
   // ===========================================
-  // Aggregate for charts (ใช้ข้อมูลของ "เดือนที่เลือก")
+  // Aggregate
   // ===========================================
   const byCategory = {};
   expenses.forEach(e => {
@@ -419,6 +411,23 @@ async function renderDashboard(root) {
   expenses.forEach(e => {
     const k = e.payment_methods?.name || 'ไม่ระบุ';
     byPayment[k] = (byPayment[k] || 0) + Number(e.amount);
+  });
+
+  // ยอดแยกตามหมวดย่อย (สำหรับแสดงใน budget card)
+  const bySubcategory = {};
+  expenses.forEach(e => {
+    if (e.subcategory_id && e.subcategories) {
+      const key = e.subcategory_id;
+      if (!bySubcategory[key]) {
+        bySubcategory[key] = {
+          name: e.subcategories.name,
+          icon: e.subcategories.icon,
+          parentName: e.categories?.name,
+          amount: 0
+        };
+      }
+      bySubcategory[key].amount += Number(e.amount);
+    }
   });
 
   const last7 = [...Array(7)].map((_, i) => {
@@ -563,6 +572,10 @@ async function renderDashboard(root) {
           const limitFmt = limit.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
           const remainFmt = remain.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
+          // ยอดหมวดย่อยในหมวดนี้
+          const subBreakdown = Object.values(bySubcategory).filter(s => s.parentName === cat.name);
+          const maxSubAmount = Math.max(...subBreakdown.map(s => s.amount), 1);
+
           return `
             <div class="budget-card ${statusClass}" style="animation-delay:${idx * 0.06}s">
               ${remainPct <= 0 ? '<span class="confetti">🎉</span>' : ''}
@@ -613,6 +626,23 @@ async function renderDashboard(root) {
               <div class="budget-card-bar">
                 <div class="bar-fill" style="width:${barWidth}%"></div>
               </div>
+
+              ${subBreakdown.length > 0 ? `
+                <div class="subcat-breakdown">
+                  <div class="subcat-breakdown-title">🏷️ แยกหมวดย่อย</div>
+                  <div class="subcat-bars">
+                    ${subBreakdown.sort((a,b) => b.amount - a.amount).slice(0, 4).map(s => `
+                      <div class="subcat-bar-row">
+                        <span class="icon">${s.icon || '🏷️'}</span>
+                        <div class="bar-wrap">
+                          <div class="bar-fill" style="width:${(s.amount / maxSubAmount) * 100}%"></div>
+                        </div>
+                        <span class="bar-value">฿${Math.round(s.amount).toLocaleString()}</span>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `;
         }).join('')}
@@ -635,7 +665,7 @@ async function renderDashboard(root) {
       };
     });
 
-       budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
+    budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
       btn.onclick = () => {
         listState.range = '30';
         listState.categoryId = btn.dataset.budgetList;
@@ -645,17 +675,14 @@ async function renderDashboard(root) {
       };
     });
 
-    // 🔔 ตรวจสอบงบประมาณ + แสดงการแจ้งเตือน
+    // 🔔 ตรวจสอบงบประมาณ
     const alerts = await checkBudgetAlerts(budgets, byCategory, categories);
 
-    // แสดง Alert Banner เหนือ Month Selector
     if (alerts.length > 0) {
       const bannerHTML = renderAlertBanner(alerts);
       const monthSelector = document.querySelector('.month-selector');
       if (monthSelector) {
         monthSelector.insertAdjacentHTML('afterend', bannerHTML);
-
-        // ปุ่มปิด banner
         document.getElementById('alertClose')?.addEventListener('click', () => {
           document.getElementById('alertBanner')?.remove();
         });
@@ -679,7 +706,7 @@ async function renderDashboard(root) {
 
     const { data, error } = await db
       .from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .select('*, categories(name,icon), payment_methods(name,icon), subcategories(name,icon)')
       .gte('expense_date', fromStr)
       .lte('expense_date', toStr)
       .order('expense_date', { ascending: false })
@@ -752,6 +779,7 @@ async function renderDashboard(root) {
                     <div class="cat-name" style="font-size:14px">
                       <span class="emoji">${e.categories?.icon || '📁'}</span>
                       ${catName}
+                      ${e.subcategories ? `<span class="subcat-chip">${e.subcategories.icon || '🏷️'} ${e.subcategories.name}</span>` : ''}
                     </div>
                     <div class="meta">
                       <span>${payIcon}</span>
@@ -889,7 +917,7 @@ async function renderList(root) {
 
     let query = db
       .from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .select('*, categories(name,icon), payment_methods(name,icon), subcategories(name,icon)')
       .order('expense_date', { ascending: false })
       .order('created_at', { ascending: false });
 
@@ -957,6 +985,7 @@ async function renderList(root) {
                     <div class="cat-name">
                       <span class="emoji">${e.categories?.icon || '📁'}</span>
                       ${catName}
+                      ${e.subcategories ? `<span class="subcat-chip">${e.subcategories.icon || '🏷️'} ${e.subcategories.name}</span>` : ''}
                     </div>
                     <div class="meta">
                       <span>${payIcon}</span>
@@ -998,10 +1027,15 @@ async function renderList(root) {
 }
 
 // ===========================================
-// EDIT MODAL
+// EDIT MODAL (มี subcategory)
 // ===========================================
 async function openEditModal(expense, categories, onSaved) {
-  const { data: pays } = await db.from('payment_methods').select('*').order('name');
+  const [paysRes, subcatsRes] = await Promise.all([
+    db.from('payment_methods').select('*').order('name'),
+    db.from('subcategories').select('*').order('name')
+  ]);
+  const pays = paysRes.data || [];
+  const subcats = subcatsRes.data || [];
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
@@ -1017,7 +1051,7 @@ async function openEditModal(expense, categories, onSaved) {
 
         <div class="form-group">
           <label>หมวดหมู่</label>
-          <select name="category_id" required>
+          <select name="category_id" id="editCatSelect" required>
             ${categories.map(c => `
               <option value="${c.id}" ${c.id === expense.category_id ? 'selected' : ''}>
                 ${c.icon} ${c.name}
@@ -1026,10 +1060,17 @@ async function openEditModal(expense, categories, onSaved) {
           </select>
         </div>
 
+        <div class="form-group subcat-dropdown-wrap" id="editSubcatWrap" style="display:none">
+          <label>หมวดย่อย <span style="font-weight:400;color:#94a3b8;font-size:11px">(ไม่บังคับ)</span></label>
+          <select name="subcategory_id" id="editSubcatSelect">
+            <option value="">-- ไม่ระบุ --</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label>ประเภทการชำระ</label>
           <select name="payment_method_id" required>
-            ${(pays || []).map(p => `
+            ${pays.map(p => `
               <option value="${p.id}" ${p.id === expense.payment_method_id ? 'selected' : ''}>
                 ${p.icon} ${p.name}
               </option>
@@ -1057,6 +1098,39 @@ async function openEditModal(expense, categories, onSaved) {
 
   document.body.appendChild(overlay);
 
+  // Subcategory dropdown
+  const editCatSelect = overlay.querySelector('#editCatSelect');
+  const editSubcatWrap = overlay.querySelector('#editSubcatWrap');
+  const editSubcatSelect = overlay.querySelector('#editSubcatSelect');
+
+  function updateEditSubcat() {
+    const catId = editCatSelect.value;
+    if (!catId) {
+      editSubcatWrap.style.display = 'none';
+      return;
+    }
+
+    const children = subcats.filter(s => s.parent_id === catId);
+
+    if (children.length === 0) {
+      editSubcatWrap.style.display = 'none';
+      editSubcatSelect.innerHTML = '<option value="">-- ไม่ระบุ --</option>';
+      return;
+    }
+
+    editSubcatSelect.innerHTML = '<option value="">-- ไม่ระบุ --</option>' +
+      children.map(s => `
+        <option value="${s.id}" ${s.id === expense.subcategory_id ? 'selected' : ''}>
+          ${s.icon} ${s.name}
+        </option>
+      `).join('');
+
+    editSubcatWrap.style.display = 'block';
+  }
+
+  editCatSelect.addEventListener('change', updateEditSubcat);
+  updateEditSubcat();
+
   overlay.querySelector('#modalCancel').onclick = () => overlay.remove();
   overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
 
@@ -1068,7 +1142,8 @@ async function openEditModal(expense, categories, onSaved) {
       category_id: fd.get('category_id'),
       payment_method_id: fd.get('payment_method_id'),
       expense_date: fd.get('expense_date'),
-      note: fd.get('note') || null
+      note: fd.get('note') || null,
+      subcategory_id: fd.get('subcategory_id') || null
     };
 
     const { error } = await db.from('expenses').update(payload).eq('id', expense.id);
@@ -1143,18 +1218,21 @@ async function openBudgetEditModal(category, currentAmount, ym, onSaved) {
 }
 
 // ===========================================
-// ADD EXPENSE
+// ADD EXPENSE (มี subcategory)
 // ===========================================
 async function renderAdd(root) {
   root.innerHTML = skeletonForm();
 
-  const [catRes, payRes] = await Promise.all([
+  const [catRes, payRes, subcatRes] = await Promise.all([
     db.from('categories').select('*').order('name'),
-    db.from('payment_methods').select('*').order('name')
+    db.from('payment_methods').select('*').order('name'),
+    db.from('subcategories').select('*').order('name')
   ]);
 
   const cats = catRes.data || [];
   const pays = payRes.data || [];
+  const subcats = subcatRes.data || [];
+  allSubcategories = subcats;
   const today = localDateStr(new Date());
 
   const preselectCat = sessionStorage.getItem('preselectCategory');
@@ -1171,9 +1249,16 @@ async function renderAdd(root) {
 
         <div class="form-group">
           <label>หมวดหมู่</label>
-          <select name="category_id" required>
+          <select name="category_id" id="catSelect" required>
             <option value="">-- เลือกหมวดหมู่ --</option>
             ${cats.map(c => `<option value="${c.id}" ${preselectCat === c.id ? 'selected' : ''}>${c.icon} ${c.name}</option>`).join('')}
+          </select>
+        </div>
+
+        <div class="form-group subcat-dropdown-wrap" id="subcatWrap" style="display:none">
+          <label>หมวดย่อย <span style="font-weight:400;color:#94a3b8;font-size:11px">(ไม่บังคับ)</span></label>
+          <select name="subcategory_id" id="subcatSelect">
+            <option value="">-- ไม่ระบุ --</option>
           </select>
         </div>
 
@@ -1207,6 +1292,35 @@ async function renderAdd(root) {
     </div>
   `;
 
+  // Subcategory dropdown
+  const catSelect = document.getElementById('catSelect');
+  const subcatWrap = document.getElementById('subcatWrap');
+  const subcatSelect = document.getElementById('subcatSelect');
+
+  function updateSubcatDropdown() {
+    const catId = catSelect.value;
+    if (!catId) {
+      subcatWrap.style.display = 'none';
+      return;
+    }
+
+    const children = subcats.filter(s => s.parent_id === catId);
+
+    if (children.length === 0) {
+      subcatWrap.style.display = 'none';
+      subcatSelect.innerHTML = '<option value="">-- ไม่ระบุ --</option>';
+      return;
+    }
+
+    subcatSelect.innerHTML = '<option value="">-- ไม่ระบุ --</option>' +
+      children.map(s => `<option value="${s.id}">${s.icon} ${s.name}</option>`).join('');
+
+    subcatWrap.style.display = 'block';
+  }
+
+  catSelect.addEventListener('change', updateSubcatDropdown);
+  updateSubcatDropdown();
+
   document.getElementById('expForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const fd = new FormData(ev.target);
@@ -1215,7 +1329,8 @@ async function renderAdd(root) {
       category_id: fd.get('category_id'),
       payment_method_id: fd.get('payment_method_id'),
       expense_date: fd.get('expense_date'),
-      note: fd.get('note') || null
+      note: fd.get('note') || null,
+      subcategory_id: fd.get('subcategory_id') || null
     };
 
     const btn = ev.target.querySelector('button[type=submit]');
@@ -1241,7 +1356,7 @@ async function renderAdd(root) {
 }
 
 // ===========================================
-// SETTINGS
+// SETTINGS (มี subcategory CRUD)
 // ===========================================
 async function renderSettings(root) {
   root.innerHTML = skeletonList();
@@ -1250,16 +1365,22 @@ async function renderSettings(root) {
   const ym = localMonthStr(now);
 
   const load = async () => {
-    const [c, p, b] = await Promise.all([
+    const [c, p, b, s] = await Promise.all([
       db.from('categories').select('*').order('name'),
       db.from('payment_methods').select('*').order('name'),
-      db.from('monthly_budgets').select('*').eq('year_month', ym)
+      db.from('monthly_budgets').select('*').eq('year_month', ym),
+      db.from('subcategories').select('*').order('name')
     ]);
-    return { cats: c.data || [], pays: p.data || [], budgets: b.data || [] };
+    return {
+      cats: c.data || [],
+      pays: p.data || [],
+      budgets: b.data || [],
+      subcats: s.data || []
+    };
   };
 
   const draw = async () => {
-    const { cats, pays, budgets } = await load();
+    const { cats, pays, budgets, subcats } = await load();
 
     root.innerHTML = `
       <h2>⚙️ ตั้งค่า</h2>
@@ -1299,6 +1420,48 @@ async function renderSettings(root) {
               </div>
             `).join('')}
           </div>
+        </div>
+      </div>
+
+      <!-- 🆕 หมวดย่อย -->
+      <div class="card" style="margin-top:16px">
+        <h3>🏷️ หมวดย่อย (Subcategories)</h3>
+        <p class="muted" style="margin-bottom:12px;font-size:12px">
+          คลิกที่หมวดเพื่อเพิ่ม/ลบหมวดย่อย
+        </p>
+        <div class="scroll-box" style="max-height:500px">
+          ${cats.map(c => {
+            const children = subcats.filter(s => s.parent_id === c.id);
+            return `
+              <div class="subcat-group" data-cat-group="${c.id}">
+                <div class="subcat-header" data-toggle-group="${c.id}">
+                  <span class="parent-icon">${c.icon}</span>
+                  <span class="parent-name">${c.name}</span>
+                  <span class="subcat-count">${children.length}</span>
+                  <span class="toggle-icon">▼</span>
+                </div>
+                <div class="subcat-body">
+                  <div class="subcat-list" data-subcat-list="${c.id}">
+                    ${children.length === 0
+                      ? '<p class="muted" style="font-size:11px;padding:6px 0">ยังไม่มีหมวดย่อย</p>'
+                      : children.map(s => `
+                        <div class="subcat-item">
+                          <span class="subcat-icon">${s.icon}</span>
+                          <span class="subcat-name">${s.name}</span>
+                          <button class="subcat-del" data-del-subcat="${s.id}" title="ลบ">✕</button>
+                        </div>
+                      `).join('')
+                    }
+                  </div>
+                  <form class="subcat-add-form" data-add-subcat="${c.id}">
+                    <input name="icon" placeholder="🏷️" maxlength="2" />
+                    <input name="name" placeholder="ชื่อหมวดย่อย" required />
+                    <button type="submit">+</button>
+                  </form>
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
       </div>
 
@@ -1365,6 +1528,58 @@ async function renderSettings(root) {
       };
     });
 
+    // Subcategory: Toggle expand
+    root.querySelectorAll('[data-toggle-group]').forEach(el => {
+      el.onclick = () => {
+        const group = el.closest('.subcat-group');
+        group.classList.toggle('expanded');
+      };
+    });
+
+    // Subcategory: Add
+    root.querySelectorAll('[data-add-subcat]').forEach(form => {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const parentId = form.dataset.addSubcat;
+        const fd = new FormData(form);
+        const name = (fd.get('name') || '').trim();
+        const icon = (fd.get('icon') || '🏷️').trim() || '🏷️';
+
+        if (!name) return;
+
+        const { error } = await db.from('subcategories').insert({
+          parent_id: parentId,
+          name,
+          icon
+        });
+
+        if (error) {
+          if (error.code === '23505') return alert('หมวดย่อยนี้มีอยู่แล้ว');
+          return alert('ผิดพลาด: ' + error.message);
+        }
+
+        showToast('✅ เพิ่มหมวดย่อยแล้ว');
+        draw();
+      };
+    });
+
+    // Subcategory: Delete
+    root.querySelectorAll('[data-del-subcat]').forEach(btn => {
+      btn.onclick = async (e) => {
+        e.stopPropagation();
+        if (!confirm('ลบหมวดย่อยนี้?')) return;
+
+        const { error } = await db
+          .from('subcategories')
+          .delete()
+          .eq('id', btn.dataset.delSubcat);
+
+        if (error) return alert('ผิดพลาด: ' + error.message);
+        showToast('🗑️ ลบหมวดย่อยแล้ว');
+        draw();
+      };
+    });
+
     document.getElementById('saveBudgets').onclick = async () => {
       const inputs = root.querySelectorAll('[data-budget-cat]');
       const rows = [];
@@ -1392,62 +1607,7 @@ async function renderSettings(root) {
 }
 
 // ===========================================
-// DARK MODE TOGGLE
-// ===========================================
-function initTheme() {
-  const saved = localStorage.getItem('theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = saved || (prefersDark ? 'dark' : 'light');
-
-  document.documentElement.setAttribute('data-theme', theme);
-  updateThemeIcon(theme);
-}
-
-function updateThemeIcon(theme) {
-  const icons = document.querySelectorAll('.theme-icon');
-  icons.forEach(el => {
-    el.textContent = theme === 'dark' ? '☀️' : '🌙';
-  });
-}
-
-function toggleTheme() {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'dark' ? 'light' : 'dark';
-
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('theme', next);
-  updateThemeIcon(next);
-
-  showToast(next === 'dark' ? '🌙 โหมดกลางคืน' : '☀️ โหมดสว่าง');
-}
-
-// โหลดธีมทันที (ก่อน DOM พร้อม) เพื่อไม่ให้กระพริบ
-(function applyThemeEarly() {
-  const saved = localStorage.getItem('theme');
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = saved || (prefersDark ? 'dark' : 'light');
-  document.documentElement.setAttribute('data-theme', theme);
-})();
-
-// ผูกปุ่ม toggle เมื่อโหลดหน้า
-window.addEventListener('load', () => {
-  initTheme();
-
-  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
-  document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
-});
-
-// ติดตามการเปลี่ยนแปลงของ OS theme (ถ้าผู้ใช้ยังไม่เคยตั้งเอง)
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
-  if (!localStorage.getItem('theme')) {
-    const theme = e.matches ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', theme);
-    updateThemeIcon(theme);
-  }
-});
-
-// ===========================================
-// YEAR PAGE (กราฟรายปี)
+// YEAR PAGE
 // ===========================================
 async function renderYear(root) {
   root.innerHTML = skeletonSummary() +
@@ -1456,40 +1616,32 @@ async function renderYear(root) {
 
   const yearStart = `${currentYear}-01-01`;
   const yearEnd = `${currentYear}-12-31`;
-
-  // ปีก่อน
   const prevYearStart = `${currentYear - 1}-01-01`;
   const prevYearEnd = `${currentYear - 1}-12-31`;
 
-  const [expRes, prevExpRes, catRes] = await Promise.all([
+  const [expRes, prevExpRes] = await Promise.all([
     db.from('expenses')
       .select('*, categories(name,icon)')
       .gte('expense_date', yearStart)
       .lte('expense_date', yearEnd)
       .order('expense_date', { ascending: false }),
     db.from('expenses')
-      .select('amount')
+      .select('amount, expense_date')
       .gte('expense_date', prevYearStart)
-      .lte('expense_date', prevYearEnd),
-    db.from('categories').select('*')
+      .lte('expense_date', prevYearEnd)
   ]);
 
   const expenses = expRes.data || [];
   const prevExpenses = prevExpRes.data || [];
-  const categories = catRes.data || [];
 
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
-  // ยอดรวมทั้งปี
   const totalYear = sum(expenses);
   const totalPrevYear = sum(prevExpenses);
 
-  // ค่าเฉลี่ยต่อเดือน
   const monthsWithData = new Set(expenses.map(e => e.expense_date.slice(0, 7))).size;
-  const avgPerMonth = monthsWithData > 0 ? totalYear / monthsWithData : 0;
   const avgPerMonthFull = totalYear / 12;
 
-  // เดือนที่ใช้มากสุด
   const monthlyTotals = {};
   expenses.forEach(e => {
     const m = parseInt(e.expense_date.slice(5, 7));
@@ -1506,21 +1658,14 @@ async function renderYear(root) {
 
   const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
-  // เปรียบเทียบปีก่อน
   let yearChange;
-  if (totalPrevYear === 0 && totalYear === 0) {
-    yearChange = { pct: 0, type: 'flat' };
-  } else if (totalPrevYear === 0) {
-    yearChange = { pct: 100, type: 'new' };
-  } else {
+  if (totalPrevYear === 0 && totalYear === 0) yearChange = { pct: 0, type: 'flat' };
+  else if (totalPrevYear === 0) yearChange = { pct: 100, type: 'new' };
+  else {
     const change = ((totalYear - totalPrevYear) / totalPrevYear) * 100;
-    yearChange = {
-      pct: Math.abs(change),
-      type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
-    };
+    yearChange = { pct: Math.abs(change), type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat' };
   }
 
-  // หมวดที่ใช้มากสุด
   const byCategory = {};
   expenses.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -1602,7 +1747,6 @@ async function renderYear(root) {
     </div>
   `;
 
-  // Event: Year picker
   document.getElementById('yearPicker').addEventListener('change', (e) => {
     const y = parseInt(e.target.value);
     if (y >= 2000 && y <= 2100) {
@@ -1611,7 +1755,6 @@ async function renderYear(root) {
     }
   });
 
-  // Event: ปุ่มปัจจุบัน
   const btnYearCurrent = document.getElementById('btnYearCurrent');
   if (btnYearCurrent) {
     btnYearCurrent.onclick = () => {
@@ -1620,9 +1763,6 @@ async function renderYear(root) {
     };
   }
 
-  // ===========================================
-  // Chart: 12 เดือน
-  // ===========================================
   const monthlyData = Array.from({ length: 12 }, (_, i) => monthlyTotals[i + 1] || 0);
 
   new Chart(document.getElementById('yearChart'), {
@@ -1641,14 +1781,11 @@ async function renderYear(root) {
           gradient.addColorStop(1, '#059669');
           return gradient;
         },
-        borderRadius: 10,
-        borderSkipped: false,
-        maxBarThickness: 40
+        borderRadius: 10, borderSkipped: false, maxBarThickness: 40
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -1667,42 +1804,19 @@ async function renderYear(root) {
         y: {
           beginAtZero: true,
           grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
-          ticks: {
-            callback: v => v.toLocaleString(),
-            font: { family: 'Sarabun', size: 11 },
-            color: '#94a3b8'
-          }
+          ticks: { callback: v => v.toLocaleString(), font: { family: 'Sarabun', size: 11 }, color: '#94a3b8' }
         },
         x: {
           grid: { display: false },
-          ticks: {
-            font: { family: 'Sarabun', size: 11, weight: '600' },
-            color: '#64748b'
-          }
+          ticks: { font: { family: 'Sarabun', size: 11, weight: '600' }, color: '#64748b' }
         }
       },
       animation: { duration: 1000, easing: 'easeOutQuart' }
     }
   });
 
-  // ===========================================
-  // Chart: เปรียบเทียบปีนี้ vs ปีก่อน (รายเดือน)
-  // ===========================================
-  const prevMonthlyTotals = {};
-  prevExpenses.forEach(e => {
-    const m = parseInt(e.expense_date ? e.expense_date.slice(5, 7) : e.month);
-    // ถ้าไม่มี expense_date ใน select ของ prevExpenses ให้ skip
-  });
-
-  // โหลด prevMonthly แยกเพื่อความชัวร์
-  const { data: prevDataForCompare } = await db
-    .from('expenses')
-    .select('amount, expense_date')
-    .gte('expense_date', prevYearStart)
-    .lte('expense_date', prevYearEnd);
-
   const prevMonthly = Array(12).fill(0);
-  (prevDataForCompare || []).forEach(e => {
+  prevExpenses.forEach(e => {
     const m = parseInt(e.expense_date.slice(5, 7));
     prevMonthly[m - 1] += Number(e.amount);
   });
@@ -1717,44 +1831,33 @@ async function renderYear(root) {
           data: monthlyData,
           borderColor: '#10b981',
           backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          tension: 0.4,
-          fill: true,
+          tension: 0.4, fill: true,
           pointBackgroundColor: '#10b981',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          borderWidth: 3
+          pointBorderColor: '#fff', pointBorderWidth: 2,
+          pointRadius: 5, pointHoverRadius: 7, borderWidth: 3
         },
         {
           label: String(currentYear - 1),
           data: prevMonthly,
           borderColor: '#f59e0b',
           backgroundColor: 'rgba(245, 158, 11, 0.05)',
-          tension: 0.4,
-          fill: true,
+          tension: 0.4, fill: true,
           pointBackgroundColor: '#f59e0b',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 5,
-          pointHoverRadius: 7,
-          borderWidth: 3,
+          pointBorderColor: '#fff', pointBorderWidth: 2,
+          pointRadius: 5, pointHoverRadius: 7, borderWidth: 3,
           borderDash: [5, 5]
         }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: {
           position: 'top',
           labels: {
             font: { family: 'Sarabun', size: 12, weight: '600' },
-            usePointStyle: true,
-            pointStyle: 'circle',
-            boxWidth: 8,
-            padding: 15
+            usePointStyle: true, pointStyle: 'circle',
+            boxWidth: 8, padding: 15
           }
         },
         tooltip: {
@@ -1772,27 +1875,17 @@ async function renderYear(root) {
         y: {
           beginAtZero: true,
           grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
-          ticks: {
-            callback: v => v.toLocaleString(),
-            font: { family: 'Sarabun', size: 11 },
-            color: '#94a3b8'
-          }
+          ticks: { callback: v => v.toLocaleString(), font: { family: 'Sarabun', size: 11 }, color: '#94a3b8' }
         },
         x: {
           grid: { display: false },
-          ticks: {
-            font: { family: 'Sarabun', size: 11, weight: '600' },
-            color: '#64748b'
-          }
+          ticks: { font: { family: 'Sarabun', size: 11, weight: '600' }, color: '#64748b' }
         }
       },
       animation: { duration: 1200, easing: 'easeOutQuart' }
     }
   });
 
-  // ===========================================
-  // Category Ranking
-  // ===========================================
   const rankList = document.getElementById('rankList');
   if (!rankedCategories.length) {
     rankList.innerHTML = '<p class="empty">ยังไม่มีข้อมูลในปีนี้</p>';
@@ -1812,32 +1905,29 @@ async function renderYear(root) {
 }
 
 // ===========================================
-// COMPARE PAGE (เปรียบเทียบเดือน)
+// COMPARE PAGE
 // ===========================================
 async function renderCompare(root) {
   root.innerHTML = skeletonSummary() + skeletonCharts();
 
-  const monthA = compareMonths.a; // 'YYYY-MM'
+  const monthA = compareMonths.a;
   const monthB = compareMonths.b;
 
   const [yearA, monA] = monthA.split('-').map(Number);
   const [yearB, monB] = monthB.split('-').map(Number);
 
   const startA = `${monthA}-01`;
-  const endA = localDateStr(new Date(yearA, monA, 0)); // วันสุดท้ายของเดือน A
+  const endA = localDateStr(new Date(yearA, monA, 0));
   const startB = `${monthB}-01`;
   const endB = localDateStr(new Date(yearB, monB, 0));
 
-  const [expA, expB, catRes] = await Promise.all([
+  const [expA, expB] = await Promise.all([
     db.from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
-      .gte('expense_date', startA)
-      .lte('expense_date', endA),
+      .select('*, categories(name,icon)')
+      .gte('expense_date', startA).lte('expense_date', endA),
     db.from('expenses')
-      .select('*, categories(name,icon), payment_methods(name,icon)')
-      .gte('expense_date', startB)
-      .lte('expense_date', endB),
-    db.from('categories').select('*')
+      .select('*, categories(name,icon)')
+      .gte('expense_date', startB).lte('expense_date', endB)
   ]);
 
   const dataA = expA.data || [];
@@ -1852,7 +1942,6 @@ async function renderCompare(root) {
   const avgA = daysInA > 0 ? totalA / daysInA : 0;
   const avgB = daysInB > 0 ? totalB / daysInB : 0;
 
-  // Diff
   let diff = 0, diffPct = 0, diffType = 'flat';
   if (totalA === 0 && totalB === 0) {
     diff = 0; diffPct = 0; diffType = 'flat';
@@ -1864,7 +1953,6 @@ async function renderCompare(root) {
     diffType = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
   }
 
-  // จัดกลุ่มตามหมวด
   const catA = {}, catB = {};
   dataA.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -1879,32 +1967,27 @@ async function renderCompare(root) {
     catB[k].count += 1;
   });
 
-  // รวมทุกหมวดที่มีในทั้ง 2 เดือน
   const allCatNames = new Set([...Object.keys(catA), ...Object.keys(catB)]);
   const catComparison = [...allCatNames].map(name => {
     const a = catA[name]?.amount || 0;
     const b = catB[name]?.amount || 0;
-    const diff = b - a;
-    const diffPct = a > 0 ? (diff / a) * 100 : (b > 0 ? 100 : 0);
+    const diffVal = b - a;
     let type = 'same';
-    if (diff > 0) type = 'increase';
-    else if (diff < 0) type = 'decrease';
+    if (diffVal > 0) type = 'increase';
+    else if (diffVal < 0) type = 'decrease';
 
     return {
       name,
       icon: catA[name]?.icon || catB[name]?.icon || '📁',
-      a, b, diff, diffPct, type
+      a, b, diff: diffVal, type
     };
   }).sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
 
-  // ชื่อเดือนภาษาไทย
   const monthLabelA = new Date(yearA, monA - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
   const monthLabelB = new Date(yearB, monB - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
-  // หาค่าสูงสุดสำหรับ bars
   const maxCat = Math.max(...catComparison.map(c => Math.max(c.a, c.b)), 1);
 
-  // ยอดรายวันของแต่ละเดือน (สำหรับกราฟเส้น)
   const dailyA = Array(daysInA).fill(0);
   const dailyB = Array(daysInB).fill(0);
   dataA.forEach(e => {
@@ -2000,7 +2083,6 @@ async function renderCompare(root) {
     </div>
   `;
 
-  // Events: Month pickers
   document.getElementById('monthA').addEventListener('change', (e) => {
     compareMonths.a = e.target.value;
     renderCompare(root);
@@ -2011,11 +2093,8 @@ async function renderCompare(root) {
     renderCompare(root);
   });
 
-  // Chart: แนวโน้มรายวัน 2 เดือน
   const maxDays = Math.max(daysInA, daysInB);
   const dayLabels = Array.from({ length: maxDays }, (_, i) => `${i + 1}`);
-
-  // เตรียมข้อมูลให้ยาวเท่ากัน
   const seriesA = [...dailyA, ...Array(maxDays - daysInA).fill(null)];
   const seriesB = [...dailyB, ...Array(maxDays - daysInB).fill(null)];
 
@@ -2029,49 +2108,35 @@ async function renderCompare(root) {
           data: seriesA,
           borderColor: '#16a34a',
           backgroundColor: 'rgba(22, 163, 74, 0.1)',
-          tension: 0.4,
-          fill: true,
+          tension: 0.4, fill: true,
           pointBackgroundColor: '#16a34a',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 6,
-          borderWidth: 3,
-          spanGaps: false
+          pointBorderColor: '#fff', pointBorderWidth: 2,
+          pointRadius: 3, pointHoverRadius: 6,
+          borderWidth: 3, spanGaps: false
         },
         {
           label: monthLabelB,
           data: seriesB,
           borderColor: '#db2777',
           backgroundColor: 'rgba(219, 39, 119, 0.1)',
-          tension: 0.4,
-          fill: true,
+          tension: 0.4, fill: true,
           pointBackgroundColor: '#db2777',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          pointRadius: 3,
-          pointHoverRadius: 6,
-          borderWidth: 3,
-          spanGaps: false
+          pointBorderColor: '#fff', pointBorderWidth: 2,
+          pointRadius: 3, pointHoverRadius: 6,
+          borderWidth: 3, spanGaps: false
         }
       ]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: {
           position: 'top',
           labels: {
             font: { family: 'Sarabun', size: 12, weight: '600' },
-            usePointStyle: true,
-            pointStyle: 'circle',
-            boxWidth: 8,
-            padding: 15
+            usePointStyle: true, pointStyle: 'circle',
+            boxWidth: 8, padding: 15
           }
         },
         tooltip: {
@@ -2094,20 +2159,14 @@ async function renderCompare(root) {
         y: {
           beginAtZero: true,
           grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
-          ticks: {
-            callback: v => v.toLocaleString(),
-            font: { family: 'Sarabun', size: 11 },
-            color: '#94a3b8'
-          }
+          ticks: { callback: v => v.toLocaleString(), font: { family: 'Sarabun', size: 11 }, color: '#94a3b8' }
         },
         x: {
           grid: { display: false },
           ticks: {
             font: { family: 'Sarabun', size: 10 },
             color: '#94a3b8',
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 15
+            maxRotation: 0, autoSkip: true, maxTicksLimit: 15
           }
         }
       },
@@ -2119,10 +2178,6 @@ async function renderCompare(root) {
 // ===========================================
 // NOTIFICATIONS & ALERTS
 // ===========================================
-
-/**
- * ขออนุญาต Browser Notification
- */
 async function requestNotificationPermission() {
   if (!('Notification' in window)) return false;
   if (Notification.permission === 'granted') return true;
@@ -2132,18 +2187,11 @@ async function requestNotificationPermission() {
   return permission === 'granted';
 }
 
-/**
- * แสดง Browser Notification
- */
 function showBrowserNotification(title, body, type = 'warn') {
   if (!('Notification' in window)) return;
   if (Notification.permission !== 'granted') return;
 
-  const icons = {
-    warn: '⚠️',
-    danger: '🔴',
-    over: '🚨'
-  };
+  const icons = { warn: '⚠️', danger: '🔴', over: '🚨' };
 
   try {
     new Notification(`${icons[type]} ${title}`, {
@@ -2157,31 +2205,20 @@ function showBrowserNotification(title, body, type = 'warn') {
   }
 }
 
-/**
- * บันทึกการแจ้งเตือน
- */
 function saveNotification({ title, message, type }) {
   const notif = {
     id: Date.now().toString(),
-    title,
-    message,
-    type,
+    title, message, type,
     time: new Date().toISOString(),
     read: false
   };
 
   notifications.unshift(notif);
-  // เก็บไว้ 50 อันล่าสุด
-  if (notifications.length > 50) {
-    notifications = notifications.slice(0, 50);
-  }
+  if (notifications.length > 50) notifications = notifications.slice(0, 50);
   localStorage.setItem('notifications', JSON.stringify(notifications));
   updateNotifBadge();
 }
 
-/**
- * อัปเดต Badge
- */
 function updateNotifBadge() {
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -2200,12 +2237,6 @@ function updateNotifBadge() {
   if (btn) btn.classList.toggle('active', unreadCount > 0);
 }
 
-/**
- * ตรวจสอบงบประมาณ — เรียกหลังโหลด Dashboard
- * @param {Array} budgets - รายการงบประมาณ
- * @param {Object} byCategory - ยอดใช้จ่ายตามหมวด
- * @param {Array} categories - รายการหมวดหมู่
- */
 async function checkBudgetAlerts(budgets, byCategory, categories) {
   const alerts = [];
 
@@ -2246,15 +2277,12 @@ async function checkBudgetAlerts(budgets, byCategory, categories) {
     }
   });
 
-  // บันทึกการแจ้งเตือนใหม่ (ไม่ซ้ำในวันเดียวกัน)
   const todayStr = localDateStr(new Date());
   const existingToday = notifications.filter(n =>
-    n.time.startsWith(todayStr) &&
-    n.type === 'over' // แจ้งเฉพาะ over ไม่ให้ spam
+    n.time.startsWith(todayStr) && n.type === 'over'
   );
 
   alerts.forEach(alert => {
-    // ถ้าเป็น over และยังไม่แจ้งวันนี้ → แจ้ง
     if (alert.type === 'over') {
       const alreadyNotified = existingToday.some(
         n => n.message.includes(alert.message.split(':')[0])
@@ -2262,11 +2290,7 @@ async function checkBudgetAlerts(budgets, byCategory, categories) {
 
       if (!alreadyNotified) {
         saveNotification(alert);
-
-        // แสดง Toast
         showAlertToast(alert);
-
-        // แสดง Browser Notification
         showBrowserNotification(alert.title, alert.message, alert.type);
       }
     }
@@ -2275,9 +2299,6 @@ async function checkBudgetAlerts(budgets, byCategory, categories) {
   return alerts;
 }
 
-/**
- * แสดง Toast แจ้งเตือน (มีสี)
- */
 function showAlertToast(alert) {
   const existing = document.querySelector('.toast');
   if (existing) existing.remove();
@@ -2295,13 +2316,9 @@ function showAlertToast(alert) {
   }, 3500);
 }
 
-/**
- * สร้าง Alert Banner สำหรับแสดงบน Dashboard
- */
 function renderAlertBanner(alerts) {
   if (!alerts.length) return '';
 
-  // จัดระดับสูงสุด
   const hasOver = alerts.some(a => a.type === 'over');
   const hasDanger = alerts.some(a => a.type === 'danger');
   const bannerLevel = hasOver ? 'over' : hasDanger ? 'danger' : 'warn';
@@ -2333,9 +2350,6 @@ function renderAlertBanner(alerts) {
   `;
 }
 
-/**
- * แสดง Notification Panel
- */
 function renderNotifPanel() {
   const existing = document.querySelector('.notif-panel');
   if (existing) {
@@ -2344,7 +2358,6 @@ function renderNotifPanel() {
     return;
   }
 
-  // mark all read
   notifications.forEach(n => n.read = true);
   localStorage.setItem('notifications', JSON.stringify(notifications));
   updateNotifBadge();
@@ -2377,7 +2390,6 @@ function renderNotifPanel() {
   document.body.appendChild(panel);
   notifPanelOpen = true;
 
-  // Clear button
   panel.querySelector('#clearNotifs').onclick = () => {
     notifications = [];
     localStorage.setItem('notifications', JSON.stringify(notifications));
@@ -2387,7 +2399,6 @@ function renderNotifPanel() {
     showToast('🗑️ ล้างการแจ้งเตือนแล้ว');
   };
 
-  // ปิดเมื่อคลิกนอกจาก panel
   setTimeout(() => {
     const closeOnOutside = (e) => {
       if (!panel.contains(e.target) &&
@@ -2402,20 +2413,14 @@ function renderNotifPanel() {
   }, 100);
 }
 
-/**
- * เริ่มต้นปุ่มแจ้งเตือน
- */
 function initNotifications() {
   const btnDesktop = document.getElementById('notifToggle');
   const btnMobile = document.getElementById('notifToggleMobile');
 
   const handleClick = async () => {
-    // ขอ permission ตอนคลิกครั้งแรก
     if ('Notification' in window && Notification.permission === 'default') {
       const granted = await requestNotificationPermission();
-      if (granted) {
-        showToast('🔔 เปิดการแจ้งเตือนแล้ว');
-      }
+      if (granted) showToast('🔔 เปิดการแจ้งเตือนแล้ว');
     }
     renderNotifPanel();
   };
@@ -2427,3 +2432,55 @@ function initNotifications() {
 }
 
 window.addEventListener('load', initNotifications);
+
+// ===========================================
+// DARK MODE TOGGLE
+// ===========================================
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+
+  document.documentElement.setAttribute('data-theme', theme);
+  updateThemeIcon(theme);
+}
+
+function updateThemeIcon(theme) {
+  const icons = document.querySelectorAll('.theme-icon');
+  icons.forEach(el => {
+    el.textContent = theme === 'dark' ? '☀️' : '🌙';
+  });
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  updateThemeIcon(next);
+
+  showToast(next === 'dark' ? '🌙 โหมดกลางคืน' : '☀️ โหมดสว่าง');
+}
+
+(function applyThemeEarly() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+})();
+
+window.addEventListener('load', () => {
+  initTheme();
+
+  document.getElementById('themeToggle')?.addEventListener('click', toggleTheme);
+  document.getElementById('themeToggleMobile')?.addEventListener('click', toggleTheme);
+});
+
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+  if (!localStorage.getItem('theme')) {
+    const theme = e.matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', theme);
+    updateThemeIcon(theme);
+  }
+});
