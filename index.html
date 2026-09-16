@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>💰 Money Tracker</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <!-- Chart.js จาก CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <!-- Supabase Client จาก CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <nav class="navbar" id="navbar">
+    <div class="brand">
+      <span>💰</span> <span>Money Tracker</span>
+    </div>
+    <div class="nav-links">
+      <a href="#dashboard" data-route="dashboard" class="nav-link"><span>📊</span> Dashboard</a>
+      <a href="#add" data-route="add" class="nav-link"><span>➕</span> บันทึก</a>
+      <a href="#settings" data-route="settings" class="nav-link"><span>⚙️</span> ตั้งค่า</a>
+    </div>
+  </nav>
+
+  <main id="app"></main>
+
+  <nav class="bottom-nav" id="bottomNav">
+    <a href="#dashboard" data-route="dashboard" class="bottom-link"><span>📊</span><small>Dashboard</small></a>
+    <a href="#add" data-route="add" class="bottom-link"><span>➕</span><small>บันทึก</small></a>
+    <a href="#settings" data-route="settings" class="bottom-link"><span>⚙️</span><small>ตั้งค่า</small></a>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
