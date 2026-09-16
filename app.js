@@ -126,6 +126,15 @@ function skeletonForm() {
 let currentMonth = localMonthStr(new Date());
 let currentYear = new Date().getFullYear();
 
+// State สำหรับหน้า compare
+let compareMonths = (() => {
+  const now = new Date();
+  const b = localMonthStr(now);
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const a = localMonthStr(prevDate);
+  return { a, b }; // a = เดือนก่อน, b = เดือนปัจจุบัน
+})();
+
 let listState = {
   range: '7',
   dateFrom: null,
@@ -179,8 +188,10 @@ async function router() {
     await renderAdd(app);
   } else if (route === 'settings') {
     await renderSettings(app);
-  } else if (route === 'year') {
+    } else if (route === 'year') {
     await renderYear(app);
+  } else if (route === 'compare') {
+    await renderCompare(app);
   } else {
     await renderDashboard(app);
   }
@@ -1777,4 +1788,309 @@ async function renderYear(root) {
       </div>
     `).join('');
   }
+}
+
+// ===========================================
+// COMPARE PAGE (เปรียบเทียบเดือน)
+// ===========================================
+async function renderCompare(root) {
+  root.innerHTML = skeletonSummary() + skeletonCharts();
+
+  const monthA = compareMonths.a; // 'YYYY-MM'
+  const monthB = compareMonths.b;
+
+  const [yearA, monA] = monthA.split('-').map(Number);
+  const [yearB, monB] = monthB.split('-').map(Number);
+
+  const startA = `${monthA}-01`;
+  const endA = localDateStr(new Date(yearA, monA, 0)); // วันสุดท้ายของเดือน A
+  const startB = `${monthB}-01`;
+  const endB = localDateStr(new Date(yearB, monB, 0));
+
+  const [expA, expB, catRes] = await Promise.all([
+    db.from('expenses')
+      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .gte('expense_date', startA)
+      .lte('expense_date', endA),
+    db.from('expenses')
+      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .gte('expense_date', startB)
+      .lte('expense_date', endB),
+    db.from('categories').select('*')
+  ]);
+
+  const dataA = expA.data || [];
+  const dataB = expB.data || [];
+
+  const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
+  const totalA = sum(dataA);
+  const totalB = sum(dataB);
+
+  const daysInA = new Date(yearA, monA, 0).getDate();
+  const daysInB = new Date(yearB, monB, 0).getDate();
+  const avgA = daysInA > 0 ? totalA / daysInA : 0;
+  const avgB = daysInB > 0 ? totalB / daysInB : 0;
+
+  // Diff
+  let diff = 0, diffPct = 0, diffType = 'flat';
+  if (totalA === 0 && totalB === 0) {
+    diff = 0; diffPct = 0; diffType = 'flat';
+  } else if (totalA === 0) {
+    diff = totalB; diffPct = 100; diffType = 'up';
+  } else {
+    diff = totalB - totalA;
+    diffPct = (diff / totalA) * 100;
+    diffType = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  }
+
+  // จัดกลุ่มตามหมวด
+  const catA = {}, catB = {};
+  dataA.forEach(e => {
+    const k = e.categories?.name || 'ไม่ระบุ';
+    if (!catA[k]) catA[k] = { amount: 0, count: 0, icon: e.categories?.icon || '📁' };
+    catA[k].amount += Number(e.amount);
+    catA[k].count += 1;
+  });
+  dataB.forEach(e => {
+    const k = e.categories?.name || 'ไม่ระบุ';
+    if (!catB[k]) catB[k] = { amount: 0, count: 0, icon: e.categories?.icon || '📁' };
+    catB[k].amount += Number(e.amount);
+    catB[k].count += 1;
+  });
+
+  // รวมทุกหมวดที่มีในทั้ง 2 เดือน
+  const allCatNames = new Set([...Object.keys(catA), ...Object.keys(catB)]);
+  const catComparison = [...allCatNames].map(name => {
+    const a = catA[name]?.amount || 0;
+    const b = catB[name]?.amount || 0;
+    const diff = b - a;
+    const diffPct = a > 0 ? (diff / a) * 100 : (b > 0 ? 100 : 0);
+    let type = 'same';
+    if (diff > 0) type = 'increase';
+    else if (diff < 0) type = 'decrease';
+
+    return {
+      name,
+      icon: catA[name]?.icon || catB[name]?.icon || '📁',
+      a, b, diff, diffPct, type
+    };
+  }).sort((x, y) => Math.abs(y.diff) - Math.abs(x.diff));
+
+  // ชื่อเดือนภาษาไทย
+  const monthLabelA = new Date(yearA, monA - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const monthLabelB = new Date(yearB, monB - 1, 1).toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+
+  // หาค่าสูงสุดสำหรับ bars
+  const maxCat = Math.max(...catComparison.map(c => Math.max(c.a, c.b)), 1);
+
+  // ยอดรายวันของแต่ละเดือน (สำหรับกราฟเส้น)
+  const dailyA = Array(daysInA).fill(0);
+  const dailyB = Array(daysInB).fill(0);
+  dataA.forEach(e => {
+    const d = parseInt(e.expense_date.slice(8, 10));
+    dailyA[d - 1] += Number(e.amount);
+  });
+  dataB.forEach(e => {
+    const d = parseInt(e.expense_date.slice(8, 10));
+    dailyB[d - 1] += Number(e.amount);
+  });
+
+  root.innerHTML = `
+    <div class="compare-selector">
+      <div class="compare-month-input month-a">
+        <label>📅 เดือน A</label>
+        <input type="month" id="monthA" value="${monthA}" />
+      </div>
+      <div class="vs-badge">VS</div>
+      <div class="compare-month-input month-b">
+        <label>📅 เดือน B</label>
+        <input type="month" id="monthB" value="${monthB}" />
+      </div>
+    </div>
+
+    <div class="compare-cards">
+      <div class="compare-card month-a">
+        <div class="month-label">🟢 ${monthLabelA}</div>
+        <div class="amount">${totalA.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="count">${dataA.length} รายการ</div>
+        <div class="avg">📊 เฉลี่ย/วัน ฿${Math.round(avgA).toLocaleString()}</div>
+      </div>
+
+      <div class="compare-card month-b">
+        <div class="month-label">🔴 ${monthLabelB}</div>
+        <div class="amount">${totalB.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="count">${dataB.length} รายการ</div>
+        <div class="avg">📊 เฉลี่ย/วัน ฿${Math.round(avgB).toLocaleString()}</div>
+      </div>
+    </div>
+
+    <div style="text-align:center;margin-bottom:20px">
+      <div class="diff-badge ${diffType}">
+        ${diffType === 'up' ? '▲' : diffType === 'down' ? '▼' : '•'}
+        ${diffType === 'flat' ? 'เท่ากัน' : 
+          (diff > 0 ? '+' : '') + diff.toLocaleString() + ' บาท (' + 
+          (diff > 0 ? '+' : '') + diffPct.toFixed(1) + '%)'}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3>📈 แนวโน้มรายวัน (2 เดือน)</h3>
+      <div class="chart-container"><canvas id="dailyChart"></canvas></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h3>📊 เปรียบเทียบตามหมวด</h3>
+      <div class="cat-compare-list">
+        ${catComparison.length === 0 
+          ? '<p class="empty">ยังไม่มีข้อมูลใน 2 เดือนนี้</p>' 
+          : catComparison.map(c => {
+            const pctA = (c.a / maxCat) * 100;
+            const pctB = (c.b / maxCat) * 100;
+            const diffLabel = c.diff === 0 ? 'เท่ากัน' :
+              (c.diff > 0 ? '+' : '') + c.diff.toLocaleString() + ' ฿';
+            return `
+              <div class="cat-compare-item ${c.type}">
+                <div class="cat-compare-header">
+                  <div class="cat-compare-name">
+                    <span class="icon">${c.icon}</span>
+                    <span>${c.name}</span>
+                  </div>
+                  <div class="cat-compare-diff ${c.type === 'increase' ? 'up' : c.type === 'decrease' ? 'down' : 'flat'}">
+                    ${c.type === 'increase' ? '▲' : c.type === 'decrease' ? '▼' : '•'} ${diffLabel}
+                  </div>
+                </div>
+                <div class="cat-compare-bars">
+                  <div class="cat-compare-bar a">
+                    <span class="label">A</span>
+                    <div class="bar-wrap"><div class="bar-fill" style="width:${pctA}%"></div></div>
+                    <span class="value">฿${c.a.toLocaleString()}</span>
+                  </div>
+                  <div class="cat-compare-bar b">
+                    <span class="label">B</span>
+                    <div class="bar-wrap"><div class="bar-fill" style="width:${pctB}%"></div></div>
+                    <span class="value">฿${c.b.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')
+        }
+      </div>
+    </div>
+  `;
+
+  // Events: Month pickers
+  document.getElementById('monthA').addEventListener('change', (e) => {
+    compareMonths.a = e.target.value;
+    renderCompare(root);
+  });
+
+  document.getElementById('monthB').addEventListener('change', (e) => {
+    compareMonths.b = e.target.value;
+    renderCompare(root);
+  });
+
+  // Chart: แนวโน้มรายวัน 2 เดือน
+  const maxDays = Math.max(daysInA, daysInB);
+  const dayLabels = Array.from({ length: maxDays }, (_, i) => `${i + 1}`);
+
+  // เตรียมข้อมูลให้ยาวเท่ากัน
+  const seriesA = [...dailyA, ...Array(maxDays - daysInA).fill(null)];
+  const seriesB = [...dailyB, ...Array(maxDays - daysInB).fill(null)];
+
+  new Chart(document.getElementById('dailyChart'), {
+    type: 'line',
+    data: {
+      labels: dayLabels,
+      datasets: [
+        {
+          label: monthLabelA,
+          data: seriesA,
+          borderColor: '#16a34a',
+          backgroundColor: 'rgba(22, 163, 74, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: '#16a34a',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          borderWidth: 3,
+          spanGaps: false
+        },
+        {
+          label: monthLabelB,
+          data: seriesB,
+          borderColor: '#db2777',
+          backgroundColor: 'rgba(219, 39, 119, 0.1)',
+          tension: 0.4,
+          fill: true,
+          pointBackgroundColor: '#db2777',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 6,
+          borderWidth: 3,
+          spanGaps: false
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            font: { family: 'Sarabun', size: 12, weight: '600' },
+            usePointStyle: true,
+            pointStyle: 'circle',
+            boxWidth: 8,
+            padding: 15
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          titleFont: { family: 'Sarabun', size: 13, weight: '600' },
+          bodyFont: { family: 'Sarabun', size: 13 },
+          cornerRadius: 10,
+          callbacks: {
+            title: (ctx) => `วันที่ ${ctx[0].label}`,
+            label: (ctx) => {
+              if (ctx.parsed.y === null || ctx.parsed.y === undefined) return null;
+              return ` ${ctx.dataset.label}: ฿${ctx.parsed.y.toLocaleString()}`;
+            }
+          },
+          filter: (item) => item.parsed.y !== null
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
+          ticks: {
+            callback: v => v.toLocaleString(),
+            font: { family: 'Sarabun', size: 11 },
+            color: '#94a3b8'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Sarabun', size: 10 },
+            color: '#94a3b8',
+            maxRotation: 0,
+            autoSkip: true,
+            maxTicksLimit: 15
+          }
+        }
+      },
+      animation: { duration: 1200, easing: 'easeOutQuart' }
+    }
+  });
 }
