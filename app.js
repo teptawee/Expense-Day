@@ -4,6 +4,12 @@
 const SUPABASE_URL = 'https://gzorqanbqwcnvohfywog.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6b3JxYW5icXdjbnZvaGZ5d29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk1MjgzNjcsImV4cCI6MjEwNTEwNDM2N30.NyQAg9LhgCXHKf-ddYjCUkHFQ94Tw8j3JA9bdpxgs7I';
 // ===========================================
+// ===========================================
+// ⚠️ แก้ 2 บรรทัดนี้ก่อนอัปโหลด!
+// ===========================================
+const SUPABASE_URL = 'https://gzorqanbqwcnvohfywog.supabase.co';
+const SUPABASE_ANON_KEY = 'ใส่ anon key ของคุณที่นี่';
+// ===========================================
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -38,8 +44,7 @@ function showToast(msg) {
   setTimeout(() => t.remove(), 1800);
 }
 
-// State การเลือกเดือน
-let currentMonth = new Date().toISOString().slice(0,7); // "2026-09"
+let currentMonth = new Date().toISOString().slice(0,7);
 
 // ===========================================
 // ROUTER
@@ -79,7 +84,6 @@ window.addEventListener('load', router);
 async function renderDashboard(root) {
   root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
 
-  // ดึงข้อมูลตามเดือนที่เลือก
   const monthStart = currentMonth + '-01';
   const monthDate = new Date(monthStart);
   const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
@@ -102,27 +106,20 @@ async function renderDashboard(root) {
   const now = new Date();
   const isCurrentMonth = currentMonth === now.toISOString().slice(0,7);
 
-  // ===========================================
-  // สรุปยอด (วันนี้, สัปดาห์นี้, เดือนนี้, เฉลี่ย/วัน)
-  // ===========================================
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
-  // วันนี้
   const todayStr = now.toISOString().slice(0,10);
   const totalDay = sum(expenses.filter(e => e.expense_date === todayStr));
 
-  // เมื่อวาน
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0,10);
   const totalYesterday = sum(expenses.filter(e => e.expense_date === yesterdayStr));
 
-  // สัปดาห์นี้
   const weekStart = startOf('week');
   const weekEnd = endOf('week');
   const totalWeek = sum(expenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
-  // สัปดาห์ก่อน
   const prevWeekStart = new Date(now);
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekStartStr = startOf('week', prevWeekStart);
@@ -131,10 +128,8 @@ async function renderDashboard(root) {
     e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
   ));
 
-  // เดือนนี้
   const totalMonth = sum(expenses);
 
-  // เดือนก่อน (ต้อง query แยก)
   const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
   const prevMonthStr = prevMonthDate.toISOString().slice(0,7);
   const prevMonthStart = prevMonthStr + '-01';
@@ -150,43 +145,29 @@ async function renderDashboard(root) {
   const totalPrevMonth = sum(prevMonthExp || []);
   const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
 
-  // เฉลี่ย/วัน (เดือนที่เลือก)
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
   const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
-
-  // คาดการณ์สิ้นเดือน
   const forecast = avgPerDay * daysInMonth;
 
-  // ===========================================
-  // คำนวณเปอร์เซ็นต์เปรียบเทียบ
-  // ===========================================
   function calcChange(current, prev) {
     if (prev === 0 && current === 0) return { pct: 0, type: 'flat' };
     if (prev === 0 && current > 0) return { pct: 100, type: 'new' };
     const change = ((current - prev) / prev) * 100;
     return {
       pct: Math.abs(change),
-      type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat',
-      raw: change
+      type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat'
     };
   }
 
   const dayChange = calcChange(totalDay, totalYesterday);
   const weekChange = calcChange(totalWeek, totalPrevWeek);
   const monthChange = calcChange(totalMonth, totalPrevMonth);
-
-  // Progress % ของเดือน (เทียบกับ forecast)
   const monthProgressPct = forecast > 0 ? Math.min(100, (totalMonth / forecast) * 100) : 0;
 
-  // ===========================================
-  // สร้าง HTML
-  // ===========================================
   const monthLabel = monthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
-  const monthLabelEn = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   root.innerHTML = `
-    <!-- Month Selector -->
     <div class="month-selector">
       <div class="month-selector-label">
         <span class="icon">🗓️</span>
@@ -202,9 +183,7 @@ async function renderDashboard(root) {
       ` : ''}
     </div>
 
-    <!-- Summary Cards (4 ใบแบบใหม่) -->
     <div class="summary-grid">
-      <!-- วันนี้ -->
       <div class="summary-card-new pink">
         <div class="card-label"><span class="icon">📆</span> วันนี้</div>
         <div class="card-amount">${totalDay.toLocaleString()}<span class="unit">บาท</span></div>
@@ -215,7 +194,6 @@ async function renderDashboard(root) {
         <div class="card-prev">เมื่อวาน: ฿${totalYesterday.toLocaleString()}</div>
       </div>
 
-      <!-- สัปดาห์นี้ -->
       <div class="summary-card-new green">
         <div class="card-label"><span class="icon">🗓️</span> สัปดาห์นี้</div>
         <div class="card-amount">${totalWeek.toLocaleString()}<span class="unit">บาท</span></div>
@@ -226,7 +204,6 @@ async function renderDashboard(root) {
         <div class="card-prev">สัปดาห์ก่อน: ฿${totalPrevWeek.toLocaleString()}</div>
       </div>
 
-      <!-- เดือนนี้ -->
       <div class="summary-card-new blue">
         <div class="card-label"><span class="icon">📅</span> ${isCurrentMonth ? 'เดือนนี้' : monthLabel}</div>
         <div class="card-amount">${totalMonth.toLocaleString()}<span class="unit">บาท</span></div>
@@ -237,7 +214,6 @@ async function renderDashboard(root) {
         <div class="card-prev">${hasPrevMonthData ? `เดือนก่อน: ฿${totalPrevMonth.toLocaleString()}` : 'ยังไม่มีข้อมูลเดือนก่อน'}</div>
       </div>
 
-      <!-- เฉลี่ย/วัน -->
       <div class="summary-card-new yellow">
         <div class="card-label"><span class="icon">📊</span> เฉลี่ย/วัน</div>
         <div class="card-amount">${Math.round(avgPerDay).toLocaleString()}<span class="unit">บาท</span></div>
@@ -248,7 +224,6 @@ async function renderDashboard(root) {
       </div>
     </div>
 
-    <!-- Charts -->
     <div class="grid-2">
       <div class="card">
         <h3>🍩 ค่าใช้จ่ายตามหมวด</h3>
@@ -271,13 +246,11 @@ async function renderDashboard(root) {
     </div>
   `;
 
-  // Event: Month picker
   document.getElementById('monthPicker').addEventListener('change', (e) => {
     currentMonth = e.target.value;
     renderDashboard(root);
   });
 
-  // Event: ปุ่ม "ปัจจุบัน"
   const btnCurrent = document.getElementById('btnCurrent');
   if (btnCurrent) {
     btnCurrent.onclick = () => {
@@ -286,9 +259,6 @@ async function renderDashboard(root) {
     };
   }
 
-  // ===========================================
-  // Charts
-  // ===========================================
   const byCategory = {};
   expenses.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -361,9 +331,6 @@ async function renderDashboard(root) {
     }
   });
 
-  // ===========================================
-  // Budget Cards
-  // ===========================================
   const budSection = document.getElementById('budgetsSection');
 
   if (!budgets.length) {
@@ -489,15 +456,23 @@ let listState = {
 const CATEGORY_CLASS = {
   'ค่ากาแฟ': 'coffee',
   'ค่าอาหาร': 'food',
+  'อาหาร': 'food',
   'ค่าเครื่องดื่ม': 'drink',
+  'เครื่องดื่ม': 'drink',
   'ค่าหวย': 'lotto',
+  'หวย': 'lotto',
+  'ค่าเหวย': 'lotto',
   'ค่าช้อปปิ้ง': 'shop',
   'ค่ายานพาหนะ': 'travel',
   'ค่าน้ำมันรถ': 'oil',
   'ค่ายารักษาโรค': 'med',
   'ค่าของใช้ส่วนตัว': 'personal',
   'ค่าของใช้จำเป็น': 'need',
-  'ค่าอื่นๆ': 'other'
+  'ค่าซื้อของใช้ที่จำเป็น': 'need',
+  'ของใช้ในบ้าน': 'need',
+  'ค่าอื่นๆ': 'other',
+  'อื่นๆ': 'other',
+  'กาแฟ': 'coffee'
 };
 
 function getDateRange() {
