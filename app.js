@@ -12,12 +12,21 @@ const fmt = n => new Intl.NumberFormat('th-TH', {
   style: 'currency', currency: 'THB', maximumFractionDigits: 0
 }).format(n);
 
-function startOf(unit) {
-  const d = new Date();
+function startOf(unit, baseDate = new Date()) {
+  const d = new Date(baseDate);
   if (unit === 'day')   d.setHours(0,0,0,0);
   if (unit === 'week')  { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); }
   if (unit === 'month') { d.setDate(1); d.setHours(0,0,0,0); }
   if (unit === 'year')  { d.setMonth(0,1); d.setHours(0,0,0,0); }
+  return d.toISOString().slice(0,10);
+}
+
+function endOf(unit, baseDate = new Date()) {
+  const d = new Date(baseDate);
+  if (unit === 'day')   d.setHours(23,59,59,999);
+  if (unit === 'week')  { d.setDate(d.getDate() + (6 - d.getDay())); d.setHours(23,59,59,999); }
+  if (unit === 'month') { d.setMonth(d.getMonth() + 1, 0); d.setHours(23,59,59,999); }
+  if (unit === 'year')  { d.setMonth(11, 31); d.setHours(23,59,59,999); }
   return d.toISOString().slice(0,10);
 }
 
@@ -28,6 +37,9 @@ function showToast(msg) {
   document.body.appendChild(t);
   setTimeout(() => t.remove(), 1800);
 }
+
+// State การเลือกเดือน
+let currentMonth = new Date().toISOString().slice(0,7); // "2026-09"
 
 // ===========================================
 // ROUTER
@@ -67,12 +79,19 @@ window.addEventListener('load', router);
 async function renderDashboard(root) {
   root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
 
-  const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  // ดึงข้อมูลตามเดือนที่เลือก
+  const monthStart = currentMonth + '-01';
+  const monthDate = new Date(monthStart);
+  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
+    .toISOString().slice(0,10);
 
   const [expRes, budRes, catRes] = await Promise.all([
-    db.from('expenses').select('*, categories(name,icon), payment_methods(name,icon)').order('expense_date', { ascending: false }),
-    db.from('monthly_budgets').select('*').eq('year_month', ym),
+    db.from('expenses')
+      .select('*, categories(name,icon), payment_methods(name,icon)')
+      .gte('expense_date', monthStart)
+      .lte('expense_date', monthEnd)
+      .order('expense_date', { ascending: false }),
+    db.from('monthly_budgets').select('*').eq('year_month', currentMonth),
     db.from('categories').select('*')
   ]);
 
@@ -80,50 +99,156 @@ async function renderDashboard(root) {
   const budgets = budRes.data || [];
   const categories = catRes.data || [];
 
+  const now = new Date();
+  const isCurrentMonth = currentMonth === now.toISOString().slice(0,7);
+
+  // ===========================================
+  // สรุปยอด (วันนี้, สัปดาห์นี้, เดือนนี้, เฉลี่ย/วัน)
+  // ===========================================
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
-  const inRange = from => expenses.filter(e => e.expense_date >= from);
 
-  const totalDay   = sum(inRange(startOf('day')));
-  const totalWeek  = sum(inRange(startOf('week')));
-  const totalMonth = sum(inRange(startOf('month')));
-  const totalYear  = sum(inRange(startOf('year')));
+  // วันนี้
+  const todayStr = now.toISOString().slice(0,10);
+  const totalDay = sum(expenses.filter(e => e.expense_date === todayStr));
 
-  const byCategory = {};
-  expenses.forEach(e => {
-    const k = e.categories?.name || 'ไม่ระบุ';
-    byCategory[k] = (byCategory[k] || 0) + Number(e.amount);
-  });
+  // เมื่อวาน
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().slice(0,10);
+  const totalYesterday = sum(expenses.filter(e => e.expense_date === yesterdayStr));
 
-  const byPayment = {};
-  expenses.forEach(e => {
-    const k = e.payment_methods?.name || 'ไม่ระบุ';
-    byPayment[k] = (byPayment[k] || 0) + Number(e.amount);
-  });
+  // สัปดาห์นี้
+  const weekStart = startOf('week');
+  const weekEnd = endOf('week');
+  const totalWeek = sum(expenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
-  const last7 = [...Array(7)].map((_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const key = d.toISOString().slice(0,10);
-    const label = d.toLocaleDateString('th-TH', { weekday: 'short' });
-    const total = expenses.filter(e => e.expense_date === key)
-                          .reduce((s,e) => s + Number(e.amount), 0);
-    return { label, total };
-  });
+  // สัปดาห์ก่อน
+  const prevWeekStart = new Date(now);
+  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+  const prevWeekStartStr = startOf('week', prevWeekStart);
+  const prevWeekEndStr = endOf('week', prevWeekStart);
+  const totalPrevWeek = sum(expenses.filter(e =>
+    e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
+  ));
+
+  // เดือนนี้
+  const totalMonth = sum(expenses);
+
+  // เดือนก่อน (ต้อง query แยก)
+  const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
+  const prevMonthStr = prevMonthDate.toISOString().slice(0,7);
+  const prevMonthStart = prevMonthStr + '-01';
+  const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0)
+    .toISOString().slice(0,10);
+
+  const { data: prevMonthExp } = await db
+    .from('expenses')
+    .select('amount')
+    .gte('expense_date', prevMonthStart)
+    .lte('expense_date', prevMonthEnd);
+
+  const totalPrevMonth = sum(prevMonthExp || []);
+  const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
+
+  // เฉลี่ย/วัน (เดือนที่เลือก)
+  const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
+  const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
+  const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
+
+  // คาดการณ์สิ้นเดือน
+  const forecast = avgPerDay * daysInMonth;
+
+  // ===========================================
+  // คำนวณเปอร์เซ็นต์เปรียบเทียบ
+  // ===========================================
+  function calcChange(current, prev) {
+    if (prev === 0 && current === 0) return { pct: 0, type: 'flat' };
+    if (prev === 0 && current > 0) return { pct: 100, type: 'new' };
+    const change = ((current - prev) / prev) * 100;
+    return {
+      pct: Math.abs(change),
+      type: change > 0 ? 'up' : change < 0 ? 'down' : 'flat',
+      raw: change
+    };
+  }
+
+  const dayChange = calcChange(totalDay, totalYesterday);
+  const weekChange = calcChange(totalWeek, totalPrevWeek);
+  const monthChange = calcChange(totalMonth, totalPrevMonth);
+
+  // Progress % ของเดือน (เทียบกับ forecast)
+  const monthProgressPct = forecast > 0 ? Math.min(100, (totalMonth / forecast) * 100) : 0;
+
+  // ===========================================
+  // สร้าง HTML
+  // ===========================================
+  const monthLabel = monthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const monthLabelEn = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   root.innerHTML = `
-    <div class="grid-4">
-      ${[
-        ['วันนี้', totalDay, '☀️'],
-        ['สัปดาห์นี้', totalWeek, '📅'],
-        ['เดือนนี้', totalMonth, '🗓️'],
-        ['ปีนี้', totalYear, '🎯']
-      ].map(([label, val, icon]) => `
-        <div class="card summary-card">
-          <div class="label"><span>${label}</span><span>${icon}</span></div>
-          <div class="value">${fmt(val)}</div>
-        </div>
-      `).join('')}
+    <!-- Month Selector -->
+    <div class="month-selector">
+      <div class="month-selector-label">
+        <span class="icon">🗓️</span>
+        <span>ดูเดือน:</span>
+      </div>
+      <div class="month-selector-input">
+        <input type="month" id="monthPicker" value="${currentMonth}" />
+      </div>
+      ${!isCurrentMonth ? `
+        <button class="btn-current" id="btnCurrent">
+          <span>📍</span> ปัจจุบัน
+        </button>
+      ` : ''}
     </div>
 
+    <!-- Summary Cards (4 ใบแบบใหม่) -->
+    <div class="summary-grid">
+      <!-- วันนี้ -->
+      <div class="summary-card-new pink">
+        <div class="card-label"><span class="icon">📆</span> วันนี้</div>
+        <div class="card-amount">${totalDay.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="card-compare ${dayChange.type}">
+          ${dayChange.type === 'up' ? '▲' : dayChange.type === 'down' ? '▼' : '•'}
+          ${dayChange.type === 'new' ? 'ใหม่' : dayChange.pct.toFixed(1) + '%'}
+        </div>
+        <div class="card-prev">เมื่อวาน: ฿${totalYesterday.toLocaleString()}</div>
+      </div>
+
+      <!-- สัปดาห์นี้ -->
+      <div class="summary-card-new green">
+        <div class="card-label"><span class="icon">🗓️</span> สัปดาห์นี้</div>
+        <div class="card-amount">${totalWeek.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="card-compare ${weekChange.type}">
+          ${weekChange.type === 'up' ? '▲' : weekChange.type === 'down' ? '▼' : '•'}
+          ${weekChange.type === 'new' ? 'ใหม่' : weekChange.pct.toFixed(1) + '%'}
+        </div>
+        <div class="card-prev">สัปดาห์ก่อน: ฿${totalPrevWeek.toLocaleString()}</div>
+      </div>
+
+      <!-- เดือนนี้ -->
+      <div class="summary-card-new blue">
+        <div class="card-label"><span class="icon">📅</span> ${isCurrentMonth ? 'เดือนนี้' : monthLabel}</div>
+        <div class="card-amount">${totalMonth.toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="card-compare ${monthChange.type}">
+          ${monthChange.type === 'up' ? '▲' : monthChange.type === 'down' ? '▼' : '•'}
+          ${monthChange.type === 'new' ? 'ใหม่' : monthChange.pct.toFixed(1) + '%'}
+        </div>
+        <div class="card-prev">${hasPrevMonthData ? `เดือนก่อน: ฿${totalPrevMonth.toLocaleString()}` : 'ยังไม่มีข้อมูลเดือนก่อน'}</div>
+      </div>
+
+      <!-- เฉลี่ย/วัน -->
+      <div class="summary-card-new yellow">
+        <div class="card-label"><span class="icon">📊</span> เฉลี่ย/วัน</div>
+        <div class="card-amount">${Math.round(avgPerDay).toLocaleString()}<span class="unit">บาท</span></div>
+        <div class="card-forecast">คาดการณ์สิ้นเดือน <strong>~฿${Math.round(forecast).toLocaleString()}</strong></div>
+        <div class="card-progress">
+          <div class="card-progress-fill" style="width:${monthProgressPct}%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
     <div class="grid-2">
       <div class="card">
         <h3>🍩 ค่าใช้จ่ายตามหมวด</h3>
@@ -145,6 +270,45 @@ async function renderDashboard(root) {
       <div id="budgetsSection"></div>
     </div>
   `;
+
+  // Event: Month picker
+  document.getElementById('monthPicker').addEventListener('change', (e) => {
+    currentMonth = e.target.value;
+    renderDashboard(root);
+  });
+
+  // Event: ปุ่ม "ปัจจุบัน"
+  const btnCurrent = document.getElementById('btnCurrent');
+  if (btnCurrent) {
+    btnCurrent.onclick = () => {
+      currentMonth = new Date().toISOString().slice(0,7);
+      renderDashboard(root);
+    };
+  }
+
+  // ===========================================
+  // Charts
+  // ===========================================
+  const byCategory = {};
+  expenses.forEach(e => {
+    const k = e.categories?.name || 'ไม่ระบุ';
+    byCategory[k] = (byCategory[k] || 0) + Number(e.amount);
+  });
+
+  const byPayment = {};
+  expenses.forEach(e => {
+    const k = e.payment_methods?.name || 'ไม่ระบุ';
+    byPayment[k] = (byPayment[k] || 0) + Number(e.amount);
+  });
+
+  const last7 = [...Array(7)].map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const key = d.toISOString().slice(0,10);
+    const label = d.toLocaleDateString('th-TH', { weekday: 'short' });
+    const total = expenses.filter(e => e.expense_date === key)
+                          .reduce((s,e) => s + Number(e.amount), 0);
+    return { label, total };
+  });
 
   const colors = ['#059669','#DC2626','#F59E0B','#7C3AED','#EC4899','#3B82F6','#0891B2','#10B981','#8B5CF6','#14B8A6','#6B7280'];
 
@@ -198,7 +362,7 @@ async function renderDashboard(root) {
   });
 
   // ===========================================
-  // วงเงินคงเหลือแต่ละหมวด (แบบการ์ด)
+  // Budget Cards
   // ===========================================
   const budSection = document.getElementById('budgetsSection');
 
@@ -284,17 +448,15 @@ async function renderDashboard(root) {
       </div>
     `;
 
-    // ปุ่มแก้ไขวงเงิน
     budSection.querySelectorAll('[data-budget-edit]').forEach(btn => {
       btn.onclick = () => {
         const catId = btn.dataset.budgetEdit;
         const currentAmount = parseFloat(btn.dataset.budgetAmount);
         const cat = categories.find(c => c.id === catId);
-        openBudgetEditModal(cat, currentAmount, ym, () => renderDashboard(root));
+        openBudgetEditModal(cat, currentAmount, currentMonth, () => renderDashboard(root));
       };
     });
 
-    // ปุ่มเพิ่มรายการด่วน
     budSection.querySelectorAll('[data-budget-add]').forEach(btn => {
       btn.onclick = () => {
         sessionStorage.setItem('preselectCategory', btn.dataset.budgetAdd);
@@ -302,7 +464,6 @@ async function renderDashboard(root) {
       };
     });
 
-    // ปุ่มดูรายการของหมวดนี้
     budSection.querySelectorAll('[data-budget-list]').forEach(btn => {
       btn.onclick = () => {
         listState.range = '30';
@@ -316,7 +477,7 @@ async function renderDashboard(root) {
 }
 
 // ===========================================
-// LIST PAGE (รายการทั้งหมด)
+// LIST PAGE
 // ===========================================
 let listState = {
   range: '7',
@@ -624,14 +785,15 @@ async function openEditModal(expense, categories, onSaved) {
 }
 
 // ===========================================
-// BUDGET EDIT MODAL (Quick edit วงเงิน)
+// BUDGET EDIT MODAL
 // ===========================================
 async function openBudgetEditModal(category, currentAmount, ym, onSaved) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay budget-edit-modal';
 
-  const now = new Date();
-  const monthLabel = now.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+  const [y, m] = ym.split('-');
+  const monthLabel = new Date(parseInt(y), parseInt(m) - 1, 1)
+    .toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
   overlay.innerHTML = `
     <div class="modal">
