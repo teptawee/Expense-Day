@@ -8,6 +8,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ===========================================
+// UTILITIES
+// ===========================================
 const fmt = n => new Intl.NumberFormat('th-TH', {
   style: 'currency', currency: 'THB', maximumFractionDigits: 0
 }).format(n);
@@ -31,14 +34,96 @@ function endOf(unit, baseDate = new Date()) {
 }
 
 function showToast(msg) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+
   const t = document.createElement('div');
   t.textContent = msg;
   t.className = 'toast';
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 1800);
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.3s, transform 0.3s';
+    t.style.opacity = '0';
+    t.style.transform = 'translate(-50%, -20px)';
+    setTimeout(() => t.remove(), 300);
+  }, 1600);
 }
 
+// Skeleton Loaders
+function skeletonSummary() {
+  return `
+    <div class="loading-state">
+      <div class="skeleton skeleton-summary"></div>
+      <div class="skeleton skeleton-summary"></div>
+      <div class="skeleton skeleton-summary"></div>
+      <div class="skeleton skeleton-summary"></div>
+    </div>
+  `;
+}
+
+function skeletonCharts() {
+  return `
+    <div class="grid-2" style="margin-bottom:16px">
+      <div class="skeleton skeleton-chart"></div>
+      <div class="skeleton skeleton-chart"></div>
+    </div>
+  `;
+}
+
+function skeletonList() {
+  return `
+    ${[...Array(3)].map(() => `
+      <div style="margin-bottom:12px">
+        <div class="skeleton" style="height:20px;width:200px;margin-bottom:8px"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function skeletonForm() {
+  return `
+    <div style="max-width:520px;margin:0 auto">
+      <div class="skeleton" style="height:32px;width:200px;margin-bottom:20px"></div>
+      <div class="skeleton" style="height:400px;border-radius:20px"></div>
+    </div>
+  `;
+}
+
+// ===========================================
+// STATE
+// ===========================================
 let currentMonth = new Date().toISOString().slice(0,7);
+
+let listState = {
+  range: '7',
+  dateFrom: null,
+  dateTo: null,
+  categoryId: null
+};
+
+const CATEGORY_CLASS = {
+  'ค่ากาแฟ': 'coffee',
+  'ค่าอาหาร': 'food',
+  'อาหาร': 'food',
+  'ค่าเครื่องดื่ม': 'drink',
+  'เครื่องดื่ม': 'drink',
+  'ค่าหวย': 'lotto',
+  'หวย': 'lotto',
+  'ค่าเหวย': 'lotto',
+  'ค่าช้อปปิ้ง': 'shop',
+  'ค่ายานพาหนะ': 'travel',
+  'ค่าน้ำมันรถ': 'oil',
+  'ค่ายารักษาโรค': 'med',
+  'ค่าของใช้ส่วนตัว': 'personal',
+  'ค่าของใช้จำเป็น': 'need',
+  'ค่าซื้อของใช้ที่จำเป็น': 'need',
+  'ของใช้ในบ้าน': 'need',
+  'ค่าอื่นๆ': 'other',
+  'อื่นๆ': 'other',
+  'กาแฟ': 'coffee'
+};
 
 // ===========================================
 // ROUTER
@@ -76,7 +161,10 @@ window.addEventListener('load', router);
 // DASHBOARD
 // ===========================================
 async function renderDashboard(root) {
-  root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+  // แสดง Skeleton ระหว่างโหลด
+  root.innerHTML = skeletonSummary() + skeletonCharts() +
+    '<div class="skeleton skeleton-chart" style="margin-bottom:16px"></div>' +
+    '<div class="skeleton skeleton-chart"></div>';
 
   const monthStart = currentMonth + '-01';
   const monthDate = new Date(monthStart);
@@ -102,18 +190,22 @@ async function renderDashboard(root) {
 
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
+  // วันนี้
   const todayStr = now.toISOString().slice(0,10);
   const totalDay = sum(expenses.filter(e => e.expense_date === todayStr));
 
+  // เมื่อวาน
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().slice(0,10);
   const totalYesterday = sum(expenses.filter(e => e.expense_date === yesterdayStr));
 
+  // สัปดาห์นี้
   const weekStart = startOf('week');
   const weekEnd = endOf('week');
   const totalWeek = sum(expenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
+  // สัปดาห์ก่อน
   const prevWeekStart = new Date(now);
   prevWeekStart.setDate(prevWeekStart.getDate() - 7);
   const prevWeekStartStr = startOf('week', prevWeekStart);
@@ -122,8 +214,10 @@ async function renderDashboard(root) {
     e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
   ));
 
+  // เดือนนี้
   const totalMonth = sum(expenses);
 
+  // เดือนก่อน
   const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
   const prevMonthStr = prevMonthDate.toISOString().slice(0,7);
   const prevMonthStart = prevMonthStr + '-01';
@@ -139,11 +233,13 @@ async function renderDashboard(root) {
   const totalPrevMonth = sum(prevMonthExp || []);
   const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
 
+  // เฉลี่ย/วัน
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
   const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
   const forecast = avgPerDay * daysInMonth;
 
+  // เทียบ %
   function calcChange(current, prev) {
     if (prev === 0 && current === 0) return { pct: 0, type: 'flat' };
     if (prev === 0 && current > 0) return { pct: 100, type: 'new' };
@@ -240,11 +336,13 @@ async function renderDashboard(root) {
     </div>
   `;
 
+  // Month Picker
   document.getElementById('monthPicker').addEventListener('change', (e) => {
     currentMonth = e.target.value;
     renderDashboard(root);
   });
 
+  // ปุ่มปัจจุบัน
   const btnCurrent = document.getElementById('btnCurrent');
   if (btnCurrent) {
     btnCurrent.onclick = () => {
@@ -253,6 +351,9 @@ async function renderDashboard(root) {
     };
   }
 
+  // ===========================================
+  // Aggregate Data
+  // ===========================================
   const byCategory = {};
   expenses.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -274,12 +375,43 @@ async function renderDashboard(root) {
     return { label, total };
   });
 
-  const colors = ['#059669','#DC2626','#F59E0B','#7C3AED','#EC4899','#3B82F6','#0891B2','#10B981','#8B5CF6','#14B8A6','#6B7280'];
+  // ===========================================
+  // Charts
+  // ===========================================
+  const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 10, font: { family: 'Sarabun' } } } }
+    animation: {
+      duration: 900,
+      easing: 'easeOutQuart'
+    },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: {
+          boxWidth: 12,
+          padding: 12,
+          font: { family: 'Sarabun', size: 12 },
+          usePointStyle: true,
+          pointStyle: 'circle'
+        }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        padding: 12,
+        titleFont: { family: 'Sarabun', size: 13, weight: '600' },
+        bodyFont: { family: 'Sarabun', size: 13 },
+        borderColor: 'rgba(255,255,255,0.1)',
+        borderWidth: 1,
+        cornerRadius: 10,
+        displayColors: true,
+        callbacks: {
+          label: (ctx) => ` ${ctx.label}: ฿${ctx.parsed.toLocaleString()}`
+        }
+      }
+    }
   };
 
   new Chart(document.getElementById('catChart'), {
@@ -289,10 +421,20 @@ async function renderDashboard(root) {
       datasets: [{
         data: Object.values(byCategory).length ? Object.values(byCategory) : [1],
         backgroundColor: Object.values(byCategory).length ? colors : ['#e5e7eb'],
-        borderWidth: 0
+        borderWidth: 0,
+        hoverOffset: 12
       }]
     },
-    options: { ...chartDefaults, cutout: '60%' }
+    options: {
+      ...chartDefaults,
+      cutout: '62%',
+      animation: {
+        animateRotate: true,
+        animateScale: true,
+        duration: 1000,
+        easing: 'easeOutQuart'
+      }
+    }
   });
 
   new Chart(document.getElementById('payChart'), {
@@ -302,10 +444,21 @@ async function renderDashboard(root) {
       datasets: [{
         data: Object.values(byPayment).length ? Object.values(byPayment) : [1],
         backgroundColor: Object.values(byPayment).length ? colors.slice().reverse() : ['#e5e7eb'],
-        borderWidth: 0
+        borderWidth: 0,
+        hoverOffset: 12
       }]
     },
-    options: { ...chartDefaults, cutout: '60%' }
+    options: {
+      ...chartDefaults,
+      cutout: '62%',
+      animation: {
+        animateRotate: true,
+        animateScale: true,
+        duration: 1000,
+        delay: 200,
+        easing: 'easeOutQuart'
+      }
+    }
   });
 
   new Chart(document.getElementById('weekChart'), {
@@ -314,17 +467,55 @@ async function renderDashboard(root) {
       labels: last7.map(d => d.label),
       datasets: [{
         data: last7.map(d => d.total),
-        backgroundColor: '#059669',
-        borderRadius: 8
+        backgroundColor: (ctx) => {
+          const chart = ctx.chart;
+          const { ctx: c, chartArea } = chart;
+          if (!chartArea) return '#10b981';
+          const gradient = c.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+          gradient.addColorStop(0, '#34d399');
+          gradient.addColorStop(1, '#059669');
+          return gradient;
+        },
+        borderRadius: 10,
+        borderSkipped: false,
+        maxBarThickness: 48
       }]
     },
     options: {
       ...chartDefaults,
-      plugins: { legend: { display: false } },
-      scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() } } }
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { display: false }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
+          ticks: {
+            callback: v => v.toLocaleString(),
+            font: { family: 'Sarabun', size: 11 },
+            color: '#94a3b8'
+          }
+        },
+        x: {
+          grid: { display: false },
+          ticks: {
+            font: { family: 'Sarabun', size: 11, weight: '600' },
+            color: '#64748b'
+          }
+        }
+      },
+      animation: {
+        duration: 900,
+        easing: 'easeOutQuart',
+        delay: 300
+      }
     }
   });
 
+  // ===========================================
+  // Budget Cards
+  // ===========================================
   const budSection = document.getElementById('budgetsSection');
 
   if (!budgets.length) {
@@ -332,7 +523,7 @@ async function renderDashboard(root) {
   } else {
     budSection.innerHTML = `
       <div class="budget-cards-grid">
-        ${budgets.map(b => {
+        ${budgets.map((b, idx) => {
           const cat = categories.find(c => c.id === b.category_id);
           if (!cat) return '';
 
@@ -354,7 +545,7 @@ async function renderDashboard(root) {
           const remainFmt = remain.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
           return `
-            <div class="budget-card ${statusClass}">
+            <div class="budget-card ${statusClass}" style="animation-delay:${idx * 0.06}s">
               ${remainPct <= 0 ? '<span class="confetti">🎉</span>' : ''}
 
               <div class="budget-card-header">
@@ -440,35 +631,6 @@ async function renderDashboard(root) {
 // ===========================================
 // LIST PAGE
 // ===========================================
-let listState = {
-  range: '7',
-  dateFrom: null,
-  dateTo: null,
-  categoryId: null
-};
-
-const CATEGORY_CLASS = {
-  'ค่ากาแฟ': 'coffee',
-  'ค่าอาหาร': 'food',
-  'อาหาร': 'food',
-  'ค่าเครื่องดื่ม': 'drink',
-  'เครื่องดื่ม': 'drink',
-  'ค่าหวย': 'lotto',
-  'หวย': 'lotto',
-  'ค่าเหวย': 'lotto',
-  'ค่าช้อปปิ้ง': 'shop',
-  'ค่ายานพาหนะ': 'travel',
-  'ค่าน้ำมันรถ': 'oil',
-  'ค่ายารักษาโรค': 'med',
-  'ค่าของใช้ส่วนตัว': 'personal',
-  'ค่าของใช้จำเป็น': 'need',
-  'ค่าซื้อของใช้ที่จำเป็น': 'need',
-  'ของใช้ในบ้าน': 'need',
-  'ค่าอื่นๆ': 'other',
-  'อื่นๆ': 'other',
-  'กาแฟ': 'coffee'
-};
-
 function getDateRange() {
   const today = new Date();
   const fmtDate = d => d.toISOString().slice(0,10);
@@ -492,7 +654,7 @@ function formatThaiDate(dateStr) {
 }
 
 async function renderList(root) {
-  root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+  root.innerHTML = skeletonList();
 
   const { data: cats } = await db.from('categories').select('*').order('name');
   const categories = cats || [];
@@ -558,7 +720,7 @@ async function renderList(root) {
 
   async function loadList() {
     const content = document.getElementById('listContent');
-    content.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+    content.innerHTML = skeletonList();
 
     let query = db
       .from('expenses')
@@ -602,12 +764,12 @@ async function renderList(root) {
 
     const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
-    content.innerHTML = sortedDates.map(date => {
+    content.innerHTML = sortedDates.map((date, gIdx) => {
       const items = groups[date];
       const total = items.reduce((s, e) => s + Number(e.amount), 0);
 
       return `
-        <div class="date-group">
+        <div class="date-group" style="animation-delay:${Math.min(gIdx * 0.05, 0.4)}s">
           <div class="date-group-header">
             <div class="date-label">
               <span>📅</span>
@@ -819,7 +981,7 @@ async function openBudgetEditModal(category, currentAmount, ym, onSaved) {
 // ADD EXPENSE
 // ===========================================
 async function renderAdd(root) {
-  root.innerHTML = '<p class="muted">กำลังโหลด...</p>';
+  root.innerHTML = skeletonForm();
 
   const [catRes, payRes] = await Promise.all([
     db.from('categories').select('*').order('name'),
@@ -890,8 +1052,8 @@ async function renderAdd(root) {
       .limit(5);
 
     document.getElementById('recent').innerHTML = !data?.length ? '' : `
-      <h3 style="font-size:14px;color:#64748b;margin-bottom:8px">รายการล่าสุด</h3>
-      <div class="card" style="padding:8px">
+      <h3 style="font-size:14px;color:#64748b;margin-bottom:10px;font-weight:700">📌 รายการล่าสุด</h3>
+      <div class="card" style="padding:10px">
         ${data.map(e => `
           <div class="list-item">
             <span class="icon">${e.categories?.icon || '📁'}</span>
@@ -918,13 +1080,26 @@ async function renderAdd(root) {
       note: fd.get('note') || null
     };
 
+    const btn = ev.target.querySelector('button[type=submit]');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="loading-spinner"></span> กำลังบันทึก...';
+    btn.disabled = true;
+
     const { error } = await db.from('expenses').insert(payload);
-    if (error) return alert('ผิดพลาด: ' + error.message);
+
+    if (error) {
+      btn.innerHTML = originalText;
+      btn.disabled = false;
+      return alert('ผิดพลาด: ' + error.message);
+    }
 
     ev.target.reset();
     document.querySelector('[name=expense_date]').value = today;
     await loadRecent();
     showToast('✅ บันทึกสำเร็จ!');
+
+    btn.innerHTML = originalText;
+    btn.disabled = false;
   });
 }
 
@@ -932,6 +1107,8 @@ async function renderAdd(root) {
 // SETTINGS
 // ===========================================
 async function renderSettings(root) {
+  root.innerHTML = skeletonList();
+
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
 
@@ -1018,6 +1195,7 @@ async function renderSettings(root) {
         icon: fd.get('icon') || '📁'
       });
       if (error) return alert(error.message);
+      showToast('✅ เพิ่มหมวดหมู่แล้ว');
       draw();
     });
 
@@ -1029,6 +1207,7 @@ async function renderSettings(root) {
         icon: fd.get('icon') || '💳'
       });
       if (error) return alert(error.message);
+      showToast('✅ เพิ่มประเภทชำระแล้ว');
       draw();
     });
 
@@ -1036,6 +1215,7 @@ async function renderSettings(root) {
       b.onclick = async () => {
         if (!confirm('ลบหมวดนี้?')) return;
         await db.from('categories').delete().eq('id', b.dataset.delCat);
+        showToast('🗑️ ลบหมวดหมู่แล้ว');
         draw();
       };
     });
@@ -1043,6 +1223,7 @@ async function renderSettings(root) {
       b.onclick = async () => {
         if (!confirm('ลบประเภทนี้?')) return;
         await db.from('payment_methods').delete().eq('id', b.dataset.delPay);
+        showToast('🗑️ ลบประเภทชำระแล้ว');
         draw();
       };
     });
