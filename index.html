@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
@@ -34,8 +34,13 @@
         <a href="#list" data-route="list" class="nav-link">
           <span class="nav-icon">📋</span> รายการ
         </a>
-        <a href="#settings" data-route="settings" class="nav-link">
+               <a href="#settings" data-route="settings" class="nav-link">
           <span class="nav-icon">⚙️</span> ตั้งค่า
+        </a>
+        <button class="theme-toggle" id="themeToggle" title="เปลี่ยนธีม">
+          <span class="theme-icon">🌙</span>
+        </button>
+      </div>
         </a>
       </div>
     </div>
@@ -57,7 +62,9 @@
       <span>⚙️</span><small>ตั้งค่า</small>
     </a>
   </nav>
-
+  <button class="theme-toggle-mobile" id="themeToggleMobile" title="เปลี่ยนธีม">
+    <span class="theme-icon">🌙</span>
+  </button>
   <script src="app.js?v=5"></script>
 </body>
 </html>
