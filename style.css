@@ -20,42 +20,88 @@ body {
   padding-bottom: 80px;
 }
 
-/* Desktop Navbar */
+/* ===========================================
+   NAVBAR (ใหม่ - โลโก้กลาง + pills)
+   =========================================== */
 .navbar {
   display: none;
   position: sticky;
   top: 0;
   z-index: 40;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-  padding: 12px 24px;
-  align-items: center;
-  justify-content: space-between;
+  background: linear-gradient(135deg, #fce7f3 0%, #e0e7ff 100%);
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.03);
 }
 
-.brand {
+.navbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-center {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  color: var(--emerald-dark);
+  text-decoration: none;
+  font-weight: 800;
   font-size: 18px;
+  color: #4c1d95;
 }
 
-.nav-links { display: flex; gap: 4px; }
+.brand-center .brand-icon {
+  font-size: 24px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.nav-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
 
 .nav-link {
-  padding: 8px 16px;
-  border-radius: 12px;
+  padding: 8px 18px;
+  border-radius: 999px;
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: #6366f1;
   text-decoration: none;
-  transition: 0.15s;
+  transition: 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  border: 1px solid rgba(255,255,255,0.8);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
-.nav-link:hover { background: var(--emerald-light); }
-.nav-link.active { background: var(--emerald); color: white; }
+
+.nav-link .nav-icon {
+  font-size: 15px;
+}
+
+.nav-link:hover {
+  background: #f5f3ff;
+  transform: translateY(-1px);
+}
+
+.nav-link.active {
+  background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
+}
+
+@media (min-width: 768px) {
+  .navbar { display: block; }
+  .bottom-nav { display: none; }
+  body { padding-bottom: 24px; }
+}
 
 /* Mobile bottom nav */
 .bottom-nav {
@@ -81,13 +127,7 @@ body {
   gap: 2px;
 }
 .bottom-link span { font-size: 20px; }
-.bottom-link.active { color: var(--emerald); }
-
-@media (min-width: 768px) {
-  .navbar { display: flex; }
-  .bottom-nav { display: none; }
-  body { padding-bottom: 24px; }
-}
+.bottom-link.active { color: #7c3aed; }
 
 /* Main */
 main {
@@ -105,32 +145,228 @@ main {
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
-.grid-4 {
+/* ===========================================
+   MONTH SELECTOR
+   =========================================== */
+.month-selector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%);
+  border-radius: 14px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.month-selector-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.month-selector-label .icon {
+  font-size: 18px;
+}
+
+.month-selector-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: white;
+  border-radius: 10px;
+  border: 1px solid #bfdbfe;
+  font-weight: 600;
+  color: #1e3a8a;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  position: relative;
+}
+
+.month-selector-input input[type="month"] {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e3a8a;
+  cursor: pointer;
+  padding: 0;
+  width: auto;
+}
+
+.month-selector-input input[type="month"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.btn-current {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #a78bfa 0%, #c084fc 100%);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.15s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-current:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
+}
+
+.btn-current:active { transform: scale(0.97); }
+
+/* ===========================================
+   SUMMARY CARDS (ใหม่ - 4 ใบพร้อมเทียบ)
+   =========================================== */
+.summary-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
-  margin-bottom: 24px;
-}
-@media (min-width: 768px) {
-  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  margin-bottom: 20px;
 }
 
-.summary-card .label {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
+@media (min-width: 768px) {
+  .summary-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.summary-card-new {
+  background: white;
+  border-radius: 16px;
+  padding: 18px 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: 0.2s;
+}
+
+.summary-card-new:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+}
+
+/* Top colored border */
+.summary-card-new::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  border-radius: 16px 16px 0 0;
+}
+
+.summary-card-new.pink::before { background: linear-gradient(90deg, #f472b6, #fb7185); }
+.summary-card-new.green::before { background: linear-gradient(90deg, #34d399, #22c55e); }
+.summary-card-new.blue::before { background: linear-gradient(90deg, #60a5fa, #3b82f6); }
+.summary-card-new.yellow::before { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+
+.summary-card-new .card-label {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 10px;
   display: flex;
-  justify-content: space-between;
-}
-.summary-card .value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--emerald-dark);
-}
-@media (min-width: 768px) {
-  .summary-card .value { font-size: 20px; }
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-weight: 500;
 }
 
+.summary-card-new .card-label .icon {
+  font-size: 15px;
+}
+
+.summary-card-new .card-amount {
+  font-size: 26px;
+  font-weight: 800;
+  color: #1e293b;
+  line-height: 1;
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
+}
+
+.summary-card-new .card-amount .unit {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+  margin-left: 2px;
+}
+
+.summary-card-new .card-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+.card-compare.up {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.card-compare.down {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.card-compare.new {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.card-compare.flat {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.summary-card-new .card-prev {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.summary-card-new .card-forecast {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.summary-card-new .card-forecast strong {
+  color: #7c3aed;
+  font-weight: 700;
+}
+
+.summary-card-new .card-progress {
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.summary-card-new .card-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fbbf24, #f472b6);
+  transition: width 0.4s;
+}
+
+/* Grid */
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr;
@@ -311,19 +547,9 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .budget-input-wrap .name { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
 .budget-input-wrap input { padding: 6px 10px; font-size: 13px; }
 
-.warn-box {
-  background: #fef3c7;
-  color: #92400e;
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 13px;
-  margin-bottom: 16px;
-}
-
 /* ===========================================
    หน้า "รายการทั้งหมด"
    =========================================== */
-
 .list-page-header {
   display: flex;
   align-items: center;
@@ -349,7 +575,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   color: var(--emerald-dark);
 }
 
-/* Filter tabs */
 .filter-tabs {
   display: flex;
   gap: 8px;
@@ -381,7 +606,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   border-color: #fca88b;
 }
 
-/* Filter form */
 .filter-form {
   display: grid;
   grid-template-columns: 1fr;
@@ -433,7 +657,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .btn-search:hover { background: #f59579; }
 .btn-search:active { transform: scale(0.97); }
 
-/* Date group */
 .date-group { margin-bottom: 16px; }
 
 .date-group-header {
@@ -462,7 +685,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   font-weight: 700;
 }
 
-/* Expense item card */
 .expense-list {
   display: flex;
   flex-direction: column;
@@ -588,7 +810,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   color: #2563eb;
 }
 
-/* Empty state */
 .empty-state {
   text-align: center;
   padding: 60px 20px;
@@ -601,7 +822,7 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 }
 .empty-state p { font-size: 14px; }
 
-/* Floating Action Button */
+/* FAB */
 .fab {
   position: fixed;
   bottom: 90px;
@@ -696,9 +917,8 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 }
 
 /* ===========================================
-   วงเงินคงเหลือแต่ละหมวด (แบบการ์ด 4 คอลัมน์)
+   วงเงินคงเหลือแต่ละหมวด
    =========================================== */
-
 .budget-section-title {
   display: flex;
   align-items: center;
@@ -731,7 +951,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   .budget-cards-grid { grid-template-columns: repeat(4, 1fr); }
 }
 
-/* Budget Card */
 .budget-card {
   border-radius: 16px;
   padding: 16px;
@@ -746,7 +965,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   box-shadow: 0 8px 20px rgba(0,0,0,0.08);
 }
 
-/* Status: OK (เขียว) */
 .budget-card.ok {
   background: #f0fdf4;
   border-color: #bbf7d0;
@@ -754,7 +972,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .budget-card.ok .pct-value { color: #16a34a; }
 .budget-card.ok .bar-fill { background: #22c55e; }
 
-/* Status: Warn (เหลือง) */
 .budget-card.warn {
   background: #fffbeb;
   border-color: #fde68a;
@@ -762,7 +979,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .budget-card.warn .pct-value { color: #f59e0b; }
 .budget-card.warn .bar-fill { background: #fbbf24; }
 
-/* Status: Danger (แดง) */
 .budget-card.danger {
   background: #fef2f2;
   border-color: #fecaca;
@@ -770,7 +986,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .budget-card.danger .pct-value { color: #dc2626; }
 .budget-card.danger .bar-fill { background: #ef4444; }
 
-/* Over budget */
 .budget-card.over {
   background: #fee2e2;
   border-color: #fca5a5;
@@ -778,7 +993,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .budget-card.over .pct-value { color: #b91c1c; }
 .budget-card.over .bar-fill { background: #dc2626; }
 
-/* Card Header */
 .budget-card-header {
   display: flex;
   align-items: flex-start;
@@ -825,7 +1039,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   margin-top: 3px;
 }
 
-/* Actions */
 .budget-card-actions {
   display: flex;
   gap: 4px;
@@ -864,7 +1077,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 }
 .budget-action-btn.list:hover { background: #fde68a; }
 
-/* Percentage big */
 .budget-pct {
   display: flex;
   flex-direction: column;
@@ -886,7 +1098,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   margin-top: 2px;
 }
 
-/* Stats grid (ใช้ไป / วงเงิน / คงเหลือ) */
 .budget-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -927,7 +1138,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
 .stat-value.remain { color: #16a34a; }
 .stat-value.remain.negative { color: #dc2626; }
 
-/* Progress bar */
 .budget-card-bar {
   height: 8px;
   background: rgba(255,255,255,0.7);
@@ -941,7 +1151,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   transition: width 0.4s ease;
 }
 
-/* Confetti emoji for over budget */
 .confetti {
   position: absolute;
   top: 4px;
@@ -955,7 +1164,6 @@ h2 { font-size: 20px; font-weight: 700; color: var(--emerald-dark); margin-botto
   50% { transform: translateY(-3px); }
 }
 
-/* Modal สำหรับ Quick Edit วงเงิน */
 .budget-edit-modal .modal {
   max-width: 400px;
 }
