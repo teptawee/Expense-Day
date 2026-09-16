@@ -15,22 +15,49 @@ const fmt = n => new Intl.NumberFormat('th-TH', {
   style: 'currency', currency: 'THB', maximumFractionDigits: 0
 }).format(n);
 
+// ✅ Helper: สร้าง YYYY-MM-DD จากเวลาท้องถิ่น (ไม่เพี้ยน timezone)
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+// ✅ Helper: YYYY-MM จากเวลาท้องถิ่น
+function localMonthStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ✅ ใช้ localDateStr แทน toISOString — ไม่เพี้ยน timezone
+// สัปดาห์เริ่มวันจันทร์ (แบบไทย)
 function startOf(unit, baseDate = new Date()) {
   const d = new Date(baseDate);
-  if (unit === 'day')   d.setHours(0,0,0,0);
-  if (unit === 'week')  { d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); }
-  if (unit === 'month') { d.setDate(1); d.setHours(0,0,0,0); }
-  if (unit === 'year')  { d.setMonth(0,1); d.setHours(0,0,0,0); }
-  return d.toISOString().slice(0,10);
+  d.setHours(0, 0, 0, 0);
+
+  if (unit === 'week') {
+    const day = d.getDay(); // 0=อา, 1=จ, ..., 6=ส
+    const diff = day === 0 ? 6 : day - 1; // อาทิตย์ → ย้อน 6, จันทร์ → 0
+    d.setDate(d.getDate() - diff);
+  }
+  if (unit === 'month') { d.setDate(1); }
+  if (unit === 'year')  { d.setMonth(0, 1); }
+
+  return localDateStr(d);
 }
 
 function endOf(unit, baseDate = new Date()) {
   const d = new Date(baseDate);
-  if (unit === 'day')   d.setHours(23,59,59,999);
-  if (unit === 'week')  { d.setDate(d.getDate() + (6 - d.getDay())); d.setHours(23,59,59,999); }
-  if (unit === 'month') { d.setMonth(d.getMonth() + 1, 0); d.setHours(23,59,59,999); }
-  if (unit === 'year')  { d.setMonth(11, 31); d.setHours(23,59,59,999); }
-  return d.toISOString().slice(0,10);
+  d.setHours(23, 59, 59, 999);
+
+  if (unit === 'week') {
+    const day = d.getDay();
+    const diff = day === 0 ? 0 : 7 - day; // อาทิตย์ → 0, อื่น → บวกจนถึงอาทิตย์
+    d.setDate(d.getDate() + diff);
+  }
+  if (unit === 'month') { d.setMonth(d.getMonth() + 1, 0); }
+  if (unit === 'year')  { d.setMonth(11, 31); }
+
+  return localDateStr(d);
 }
 
 function showToast(msg) {
@@ -49,7 +76,9 @@ function showToast(msg) {
   }, 1600);
 }
 
-// Skeleton Loaders
+// ===========================================
+// SKELETON LOADERS
+// ===========================================
 function skeletonSummary() {
   return `
     <div class="loading-state">
@@ -94,7 +123,7 @@ function skeletonForm() {
 // ===========================================
 // STATE
 // ===========================================
-let currentMonth = new Date().toISOString().slice(0,7);
+let currentMonth = localMonthStr(new Date());
 
 let listState = {
   range: '7',
@@ -165,57 +194,70 @@ async function renderDashboard(root) {
     '<div class="skeleton skeleton-chart" style="margin-bottom:16px"></div>' +
     '<div class="skeleton skeleton-chart"></div>';
 
-  const monthStart = currentMonth + '-01';
-  const monthDate = new Date(monthStart);
-  const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
-    .toISOString().slice(0,10);
+  const monthDate = new Date(currentMonth + '-01T00:00:00');
+  const monthStart = localDateStr(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
+  const monthEnd = localDateStr(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
+
+  // โหลด 60 วันก่อนหน้า → ครอบ "สัปดาห์นี้" และ "สัปดาห์ก่อน" ได้เสมอ
+  const loadStart = new Date(monthDate);
+  loadStart.setDate(loadStart.getDate() - 60);
+  const loadStartStr = localDateStr(loadStart);
 
   const [expRes, budRes, catRes] = await Promise.all([
     db.from('expenses')
       .select('*, categories(name,icon), payment_methods(name,icon)')
-      .gte('expense_date', monthStart)
+      .gte('expense_date', loadStartStr)
       .lte('expense_date', monthEnd)
       .order('expense_date', { ascending: false }),
     db.from('monthly_budgets').select('*').eq('year_month', currentMonth),
     db.from('categories').select('*')
   ]);
 
-  const expenses = expRes.data || [];
+  const allExpenses = expRes.data || [];
+  // กรองเฉพาะเดือนที่เลือก → ใช้กับการ์ด "เดือนนี้" + charts + budgets
+  const expenses = allExpenses.filter(e =>
+    e.expense_date >= monthStart && e.expense_date <= monthEnd
+  );
   const budgets = budRes.data || [];
   const categories = catRes.data || [];
 
   const now = new Date();
-  const isCurrentMonth = currentMonth === now.toISOString().slice(0,7);
+  const isCurrentMonth = currentMonth === localMonthStr(now);
 
   const sum = arr => arr.reduce((s,e) => s + Number(e.amount), 0);
 
-  const todayStr = now.toISOString().slice(0,10);
-  const totalDay = sum(expenses.filter(e => e.expense_date === todayStr));
+  // วันนี้
+  const todayStr = localDateStr(now);
+  const totalDay = sum(allExpenses.filter(e => e.expense_date === todayStr));
 
+  // เมื่อวาน
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().slice(0,10);
-  const totalYesterday = sum(expenses.filter(e => e.expense_date === yesterdayStr));
+  const yesterdayStr = localDateStr(yesterday);
+  const totalYesterday = sum(allExpenses.filter(e => e.expense_date === yesterdayStr));
 
+  // สัปดาห์นี้ (จันทร์-อาทิตย์)
   const weekStart = startOf('week');
   const weekEnd = endOf('week');
-  const totalWeek = sum(expenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
+  const totalWeek = sum(allExpenses.filter(e => e.expense_date >= weekStart && e.expense_date <= weekEnd));
 
-  const prevWeekStart = new Date(now);
-  prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-  const prevWeekStartStr = startOf('week', prevWeekStart);
-  const prevWeekEndStr = endOf('week', prevWeekStart);
-  const totalPrevWeek = sum(expenses.filter(e =>
+  // สัปดาห์ก่อน
+  const prevWeekBase = new Date(now);
+  prevWeekBase.setDate(prevWeekBase.getDate() - 7);
+  const prevWeekStartStr = startOf('week', prevWeekBase);
+  const prevWeekEndStr = endOf('week', prevWeekBase);
+  const totalPrevWeek = sum(allExpenses.filter(e =>
     e.expense_date >= prevWeekStartStr && e.expense_date <= prevWeekEndStr
   ));
 
+  // เดือนนี้
   const totalMonth = sum(expenses);
 
+  // เดือนก่อน
   const prevMonthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1);
-  const prevMonthStr = prevMonthDate.toISOString().slice(0,7);
+  const prevMonthStr = localMonthStr(prevMonthDate);
   const prevMonthStart = prevMonthStr + '-01';
-  const prevMonthEnd = new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0)
-    .toISOString().slice(0,10);
+  const prevMonthEnd = localDateStr(new Date(prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1, 0));
 
   const { data: prevMonthExp } = await db
     .from('expenses')
@@ -226,6 +268,7 @@ async function renderDashboard(root) {
   const totalPrevMonth = sum(prevMonthExp || []);
   const hasPrevMonthData = prevMonthExp && prevMonthExp.length > 0;
 
+  // เฉลี่ย/วัน + คาดการณ์
   const daysInMonth = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0).getDate();
   const daysPassed = isCurrentMonth ? now.getDate() : daysInMonth;
   const avgPerDay = daysPassed > 0 ? totalMonth / daysPassed : 0;
@@ -340,11 +383,14 @@ async function renderDashboard(root) {
   const btnCurrent = document.getElementById('btnCurrent');
   if (btnCurrent) {
     btnCurrent.onclick = () => {
-      currentMonth = new Date().toISOString().slice(0,7);
+      currentMonth = localMonthStr(new Date());
       renderDashboard(root);
     };
   }
 
+  // ===========================================
+  // Aggregate for charts (ใช้ข้อมูลของ "เดือนที่เลือก")
+  // ===========================================
   const byCategory = {};
   expenses.forEach(e => {
     const k = e.categories?.name || 'ไม่ระบุ';
@@ -359,31 +405,29 @@ async function renderDashboard(root) {
 
   const last7 = [...Array(7)].map((_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i));
-    const key = d.toISOString().slice(0,10);
+    const key = localDateStr(d);
     const label = d.toLocaleDateString('th-TH', { weekday: 'short' });
-    const total = expenses.filter(e => e.expense_date === key)
-                          .reduce((s,e) => s + Number(e.amount), 0);
+    const total = allExpenses.filter(e => e.expense_date === key)
+                             .reduce((s,e) => s + Number(e.amount), 0);
     return { label, total };
   });
 
+  // ===========================================
+  // Charts
+  // ===========================================
   const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: {
-      duration: 900,
-      easing: 'easeOutQuart'
-    },
+    animation: { duration: 900, easing: 'easeOutQuart' },
     plugins: {
       legend: {
         position: 'bottom',
         labels: {
-          boxWidth: 12,
-          padding: 12,
+          boxWidth: 12, padding: 12,
           font: { family: 'Sarabun', size: 12 },
-          usePointStyle: true,
-          pointStyle: 'circle'
+          usePointStyle: true, pointStyle: 'circle'
         }
       },
       tooltip: {
@@ -409,19 +453,12 @@ async function renderDashboard(root) {
       datasets: [{
         data: Object.values(byCategory).length ? Object.values(byCategory) : [1],
         backgroundColor: Object.values(byCategory).length ? colors : ['#e5e7eb'],
-        borderWidth: 0,
-        hoverOffset: 12
+        borderWidth: 0, hoverOffset: 12
       }]
     },
     options: {
-      ...chartDefaults,
-      cutout: '62%',
-      animation: {
-        animateRotate: true,
-        animateScale: true,
-        duration: 1000,
-        easing: 'easeOutQuart'
-      }
+      ...chartDefaults, cutout: '62%',
+      animation: { animateRotate: true, animateScale: true, duration: 1000, easing: 'easeOutQuart' }
     }
   });
 
@@ -432,20 +469,12 @@ async function renderDashboard(root) {
       datasets: [{
         data: Object.values(byPayment).length ? Object.values(byPayment) : [1],
         backgroundColor: Object.values(byPayment).length ? colors.slice().reverse() : ['#e5e7eb'],
-        borderWidth: 0,
-        hoverOffset: 12
+        borderWidth: 0, hoverOffset: 12
       }]
     },
     options: {
-      ...chartDefaults,
-      cutout: '62%',
-      animation: {
-        animateRotate: true,
-        animateScale: true,
-        duration: 1000,
-        delay: 200,
-        easing: 'easeOutQuart'
-      }
+      ...chartDefaults, cutout: '62%',
+      animation: { animateRotate: true, animateScale: true, duration: 1000, delay: 200, easing: 'easeOutQuart' }
     }
   });
 
@@ -464,40 +493,24 @@ async function renderDashboard(root) {
           gradient.addColorStop(1, '#059669');
           return gradient;
         },
-        borderRadius: 10,
-        borderSkipped: false,
-        maxBarThickness: 48
+        borderRadius: 10, borderSkipped: false, maxBarThickness: 48
       }]
     },
     options: {
       ...chartDefaults,
-      plugins: {
-        ...chartDefaults.plugins,
-        legend: { display: false }
-      },
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
       scales: {
         y: {
           beginAtZero: true,
           grid: { color: 'rgba(226, 232, 240, 0.5)', drawBorder: false },
-          ticks: {
-            callback: v => v.toLocaleString(),
-            font: { family: 'Sarabun', size: 11 },
-            color: '#94a3b8'
-          }
+          ticks: { callback: v => v.toLocaleString(), font: { family: 'Sarabun', size: 11 }, color: '#94a3b8' }
         },
         x: {
           grid: { display: false },
-          ticks: {
-            font: { family: 'Sarabun', size: 11, weight: '600' },
-            color: '#64748b'
-          }
+          ticks: { font: { family: 'Sarabun', size: 11, weight: '600' }, color: '#64748b' }
         }
       },
-      animation: {
-        duration: 900,
-        easing: 'easeOutQuart',
-        delay: 300
-      }
+      animation: { duration: 900, easing: 'easeOutQuart', delay: 300 }
     }
   });
 
@@ -626,8 +639,8 @@ async function renderDashboard(root) {
     const from3Days = new Date(today);
     from3Days.setDate(from3Days.getDate() - 2);
 
-    const fromStr = from3Days.toISOString().slice(0,10);
-    const toStr = today.toISOString().slice(0,10);
+    const fromStr = localDateStr(from3Days);
+    const toStr = localDateStr(today);
 
     const { data, error } = await db
       .from('expenses')
@@ -655,10 +668,10 @@ async function renderDashboard(root) {
 
     const sortedDates = Object.keys(groups).sort((a, b) => b.localeCompare(a));
 
-    const todayStr = today.toISOString().slice(0,10);
+    const todayStr = localDateStr(today);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().slice(0,10);
+    const yesterdayStr = localDateStr(yesterday);
 
     section.innerHTML = sortedDates.map((date, gIdx) => {
       const items = groups[date];
@@ -673,9 +686,7 @@ async function renderDashboard(root) {
         dayIcon = '🌙';
       } else {
         dayLabel = new Date(date + 'T00:00:00').toLocaleDateString('th-TH', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'short'
+          weekday: 'long', day: 'numeric', month: 'short'
         });
         dayIcon = '📅';
       }
@@ -753,14 +764,13 @@ async function renderDashboard(root) {
 // ===========================================
 function getDateRange() {
   const today = new Date();
-  const fmtDate = d => d.toISOString().slice(0,10);
 
   if (listState.range === 'all') return { from: null, to: null };
 
   const days = listState.range === '7' ? 7 : 30;
   const from = new Date(today);
   from.setDate(from.getDate() - (days - 1));
-  return { from: fmtDate(from), to: fmtDate(today) };
+  return { from: localDateStr(from), to: localDateStr(today) };
 }
 
 function formatThaiDate(dateStr) {
@@ -1110,7 +1120,7 @@ async function renderAdd(root) {
 
   const cats = catRes.data || [];
   const pays = payRes.data || [];
-  const today = new Date().toISOString().slice(0,10);
+  const today = localDateStr(new Date());
 
   const preselectCat = sessionStorage.getItem('preselectCategory');
   sessionStorage.removeItem('preselectCategory');
@@ -1202,7 +1212,7 @@ async function renderSettings(root) {
   root.innerHTML = skeletonList();
 
   const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const ym = localMonthStr(now);
 
   const load = async () => {
     const [c, p, b] = await Promise.all([
