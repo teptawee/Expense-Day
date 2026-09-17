@@ -453,7 +453,7 @@ async function renderDashboard(root) {
   // ===========================================
   const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
-  const chartDefaults = {
+   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 900, easing: 'easeOutQuart' },
