@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>💰 Money Tracker</title>
+  <title> Money Tracker </title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💰</text></svg>" />
   <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=8" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 </head>
@@ -31,34 +31,32 @@
         <a href="#add" data-route="add" class="nav-link">
           <span class="nav-icon">➕</span> บันทึก
         </a>
-          <a href="#list" data-route="list" class="nav-link">
+        <a href="#list" data-route="list" class="nav-link">
           <span class="nav-icon">📋</span> รายการ
         </a>
-          <a href="#year" data-route="year" class="nav-link">
+        <a href="#year" data-route="year" class="nav-link">
           <span class="nav-icon">📈</span> ปี
         </a>
         <a href="#compare" data-route="compare" class="nav-link">
           <span class="nav-icon">📊</span> เทียบ
         </a>
-               <a href="#settings" data-route="settings" class="nav-link">
+        <a href="#settings" data-route="settings" class="nav-link">
           <span class="nav-icon">⚙️</span> ตั้งค่า
         </a>
-         <button class="theme-toggle" id="themeToggle" title="เปลี่ยนธีม">
-          <span class="theme-icon">🌙</span>
-        </button>
         <button class="notif-toggle" id="notifToggle" title="การแจ้งเตือน">
           <span>🔔</span>
           <span class="notif-badge" id="notifBadge" style="display:none">0</span>
         </button>
-      </div>
-      </div>
-        </a>
+        <button class="theme-toggle" id="themeToggle" title="เปลี่ยนธีม">
+          <span class="theme-icon">🌙</span>
+        </button>
       </div>
     </div>
   </nav>
 
   <main id="app"></main>
 
+  <!-- BOTTOM NAV — เหลือ 4 ช่อง -->
   <nav class="bottom-nav" id="bottomNav">
     <a href="#dashboard" data-route="dashboard" class="bottom-link">
       <span>📊</span><small>Dashboard</small>
@@ -66,24 +64,24 @@
     <a href="#add" data-route="add" class="bottom-link">
       <span>➕</span><small>บันทึก</small>
     </a>
-    <a href="#year" data-route="year" class="bottom-link">
-      <span>📈</span><small>ปี</small>
-    </a>
-    <a href="#compare" data-route="compare" class="bottom-link">
-      <span>📊</span><small>เทียบ</small>
+    <a href="#list" data-route="list" class="bottom-link">
+      <span>📋</span><small>รายการ</small>
     </a>
     <a href="#settings" data-route="settings" class="bottom-link">
       <span>⚙️</span><small>ตั้งค่า</small>
     </a>
   </nav>
-    <button class="theme-toggle-mobile" id="themeToggleMobile" title="เปลี่ยนธีม">
-    <span class="theme-icon">🌙</span>
-  </button>
 
+  <!-- ปุ่มลอยมุมบนขวา (Mobile) -->
   <button class="notif-toggle-mobile" id="notifToggleMobile" title="การแจ้งเตือน">
     <span>🔔</span>
     <span class="notif-badge" id="notifBadgeMobile" style="display:none">0</span>
   </button>
-  <script src="app.js?v=6"></script>
+
+  <button class="theme-toggle-mobile" id="themeToggleMobile" title="เปลี่ยนธีม">
+    <span class="theme-icon">🌙</span>
+  </button>
+
+  <script src="app.js?v=8"></script>
 </body>
 </html>
