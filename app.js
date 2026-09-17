@@ -75,6 +75,14 @@ function showToast(msg) {
   }, 1600);
 }
 
+// ✅ Tooltip callback ที่รองรับทุกประเภทกราฟ (doughnut / bar / line)
+function tooltipLabelCallback(ctx) {
+  const raw = typeof ctx.parsed === 'number'
+    ? ctx.parsed
+    : (ctx.parsed?.y ?? 0);
+  return ` ${ctx.label}: ฿${Number(raw).toLocaleString()}`;
+}
+
 // ===========================================
 // SKELETON LOADERS
 // ===========================================
@@ -301,7 +309,7 @@ async function renderDashboard(root) {
 
   const monthLabel = monthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
-    root.innerHTML = `
+  root.innerHTML = `
     <div class="month-selector">
       <div class="month-selector-label">
         <span class="icon">🗓️</span>
@@ -422,7 +430,7 @@ async function renderDashboard(root) {
     byPayment[k] = (byPayment[k] || 0) + Number(e.amount);
   });
 
-  // ยอดแยกตามหมวดย่อย (สำหรับแสดงใน budget card)
+  // ยอดแยกตามหมวดย่อย
   const bySubcategory = {};
   expenses.forEach(e => {
     if (e.subcategory_id && e.subcategories) {
@@ -453,7 +461,8 @@ async function renderDashboard(root) {
   // ===========================================
   const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
-   const chartDefaults = {
+  // ✅ chartDefaults — Tooltip รองรับทุกกราฟ
+  const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
     animation: { duration: 900, easing: 'easeOutQuart' },
@@ -461,12 +470,14 @@ async function renderDashboard(root) {
       legend: {
         position: 'bottom',
         labels: {
-          boxWidth: 12, padding: 12,
+          boxWidth: 12,
+          padding: 12,
           font: { family: 'Sarabun', size: 12 },
-          usePointStyle: true, pointStyle: 'circle'
+          usePointStyle: true,
+          pointStyle: 'circle'
         }
       },
-            tooltip: {
+      tooltip: {
         backgroundColor: 'rgba(15, 23, 42, 0.9)',
         padding: 12,
         titleFont: { family: 'Sarabun', size: 13, weight: '600' },
@@ -476,12 +487,11 @@ async function renderDashboard(root) {
         cornerRadius: 10,
         displayColors: true,
         callbacks: {
-          label: (ctx) => {
-            const raw = typeof ctx.parsed === 'number' ? ctx.parsed : (ctx.parsed?.y ?? 0);
-            return ` ${ctx.label}: ฿${Number(raw).toLocaleString()}`;
-          }
+          label: tooltipLabelCallback
         }
       }
+    }
+  };
 
   new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
@@ -535,7 +545,20 @@ async function renderDashboard(root) {
     },
     options: {
       ...chartDefaults,
-      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      plugins: {
+        ...chartDefaults.plugins,
+        legend: { display: false },
+        tooltip: {
+          ...chartDefaults.plugins.tooltip,
+          callbacks: {
+            title: (ctx) => ctx[0] ? `📅 ${ctx[0].label}` : '',
+            label: (ctx) => {
+              const raw = ctx.parsed?.y ?? 0;
+              return ` 💰 ฿${Number(raw).toLocaleString()}`;
+            }
+          }
+        }
+      },
       scales: {
         y: {
           beginAtZero: true,
@@ -582,7 +605,6 @@ async function renderDashboard(root) {
           const limitFmt = limit.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
           const remainFmt = remain.toLocaleString('th-TH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-          // ยอดหมวดย่อยในหมวดนี้
           const subBreakdown = Object.values(bySubcategory).filter(s => s.parentName === cat.name);
           const maxSubAmount = Math.max(...subBreakdown.map(s => s.amount), 1);
 
@@ -1037,7 +1059,7 @@ async function renderList(root) {
 }
 
 // ===========================================
-// EDIT MODAL (มี subcategory)
+// EDIT MODAL
 // ===========================================
 async function openEditModal(expense, categories, onSaved) {
   const [paysRes, subcatsRes] = await Promise.all([
@@ -1228,7 +1250,7 @@ async function openBudgetEditModal(category, currentAmount, ym, onSaved) {
 }
 
 // ===========================================
-// ADD EXPENSE (มี subcategory)
+// ADD EXPENSE
 // ===========================================
 async function renderAdd(root) {
   root.innerHTML = skeletonForm();
@@ -1366,7 +1388,7 @@ async function renderAdd(root) {
 }
 
 // ===========================================
-// SETTINGS (มี subcategory CRUD)
+// SETTINGS
 // ===========================================
 async function renderSettings(root) {
   root.innerHTML = skeletonList();
@@ -1433,7 +1455,6 @@ async function renderSettings(root) {
         </div>
       </div>
 
-      <!-- 🆕 หมวดย่อย -->
       <div class="card" style="margin-top:16px">
         <h3>🏷️ หมวดย่อย (Subcategories)</h3>
         <p class="muted" style="margin-bottom:12px;font-size:12px">
@@ -1806,7 +1827,7 @@ async function renderYear(root) {
           cornerRadius: 10,
           callbacks: {
             title: (ctx) => `${ctx[0].label} ${currentYear}`,
-            label: (ctx) => ` รวม: ฿${ctx.parsed.y.toLocaleString()}`
+            label: (ctx) => ` รวม: ฿${(ctx.parsed?.y ?? 0).toLocaleString()}`
           }
         }
       },
@@ -1877,7 +1898,7 @@ async function renderYear(root) {
           bodyFont: { family: 'Sarabun', size: 13 },
           cornerRadius: 10,
           callbacks: {
-            label: (ctx) => ` ${ctx.dataset.label}: ฿${ctx.parsed.y.toLocaleString()}`
+            label: (ctx) => ` ${ctx.dataset.label}: ฿${(ctx.parsed?.y ?? 0).toLocaleString()}`
           }
         }
       },
@@ -2158,11 +2179,11 @@ async function renderCompare(root) {
           callbacks: {
             title: (ctx) => `วันที่ ${ctx[0].label}`,
             label: (ctx) => {
-              if (ctx.parsed.y === null || ctx.parsed.y === undefined) return null;
+              if (ctx.parsed?.y === null || ctx.parsed?.y === undefined) return null;
               return ` ${ctx.dataset.label}: ฿${ctx.parsed.y.toLocaleString()}`;
             }
           },
-          filter: (item) => item.parsed.y !== null
+          filter: (item) => item.parsed?.y !== null
         }
       },
       scales: {
