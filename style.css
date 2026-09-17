@@ -562,17 +562,19 @@ main {
 
 .btn-current:active { transform: translateY(0) scale(0.97); }
 
-/* Quick Nav Pills (📈 ปี, 📊 เทียบ) */
+/* Quick Nav Pills (📈 ปี, 📊 เทียบ) — แสดงเฉพาะมือถือ */
 .month-selector .quick-nav-pills {
-  display: flex;
+  display: none; /* ซ่อนบน Desktop */
   gap: 8px;
   margin-left: auto;
   flex-wrap: wrap;
   align-items: center;
 }
 
-@media (max-width: 640px) {
+/* แสดงเฉพาะหน้าจอ < 768px */
+@media (max-width: 767px) {
   .month-selector .quick-nav-pills {
+    display: flex;
     margin-left: 0;
     width: 100%;
     justify-content: flex-start;
