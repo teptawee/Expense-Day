@@ -466,7 +466,7 @@ async function renderDashboard(root) {
           usePointStyle: true, pointStyle: 'circle'
         }
       },
-      tooltip: {
+            tooltip: {
         backgroundColor: 'rgba(15, 23, 42, 0.9)',
         padding: 12,
         titleFont: { family: 'Sarabun', size: 13, weight: '600' },
@@ -476,11 +476,12 @@ async function renderDashboard(root) {
         cornerRadius: 10,
         displayColors: true,
         callbacks: {
-          label: (ctx) => ` ${ctx.label}: ฿${ctx.parsed.toLocaleString()}`
+          label: (ctx) => {
+            const raw = typeof ctx.parsed === 'number' ? ctx.parsed : (ctx.parsed?.y ?? 0);
+            return ` ${ctx.label}: ฿${Number(raw).toLocaleString()}`;
+          }
         }
       }
-    }
-  };
 
   new Chart(document.getElementById('catChart'), {
     type: 'doughnut',
