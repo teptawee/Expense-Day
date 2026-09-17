@@ -301,7 +301,7 @@ async function renderDashboard(root) {
 
   const monthLabel = monthDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
 
-  root.innerHTML = `
+    root.innerHTML = `
     <div class="month-selector">
       <div class="month-selector-label">
         <span class="icon">🗓️</span>
@@ -315,6 +315,15 @@ async function renderDashboard(root) {
           <span>📍</span> ปัจจุบัน
         </button>
       ` : ''}
+
+      <div class="quick-nav-pills">
+        <a href="#year" class="quick-nav-pill year">
+          <span class="pill-icon">📈</span> ปี
+        </a>
+        <a href="#compare" class="quick-nav-pill compare">
+          <span class="pill-icon">📊</span> เทียบ
+        </a>
+      </div>
     </div>
 
     <div class="summary-grid">
