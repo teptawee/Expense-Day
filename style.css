@@ -1354,8 +1354,10 @@ h2 {
   transition: all 0.35s var(--ease-out);
   position: relative;
   overflow: hidden;
+  cursor: pointer;
 }
 
+/* ✅ pseudo-element ต้อง pointer-events: none! */
 .expense-item::before {
   content: '';
   position: absolute;
@@ -1363,6 +1365,8 @@ h2 {
   background: linear-gradient(90deg, rgba(251, 146, 60, 0.05), transparent);
   opacity: 0;
   transition: opacity 0.3s;
+  pointer-events: none;   /* 🔥 สำคัญมาก — ไม่ให้ทับปุ่ม */
+  z-index: 0;
 }
 
 .expense-item:hover {
@@ -1373,6 +1377,7 @@ h2 {
 
 .expense-item:hover::before { opacity: 1; }
 
+/* ✅ icon และ body อยู่เลเยอร์ปกติ */
 .expense-item .cat-icon {
   width: 48px;
   height: 48px;
@@ -1384,6 +1389,9 @@ h2 {
   font-size: 24px;
   flex-shrink: 0;
   transition: transform 0.4s var(--ease-spring);
+  position: relative;
+  z-index: 1;
+  pointer-events: none;   /* 🔥 ไม่ต้องรับ click */
 }
 
 .expense-item:hover .cat-icon {
@@ -1402,7 +1410,13 @@ h2 {
 .expense-item .cat-icon.need   { background: linear-gradient(135deg, #ccfbf1, #99f6e4); }
 .expense-item .cat-icon.other  { background: linear-gradient(135deg, #e5e7eb, #d1d5db); }
 
-.expense-item .body { flex: 1; min-width: 0; }
+.expense-item .body {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;   /* 🔥 ไม่ต้องรับ click */
+}
 
 .expense-item .cat-name {
   font-weight: 700;
@@ -1426,12 +1440,16 @@ h2 {
   flex-wrap: wrap;
 }
 
+/* ✅ right + ปุ่ม ต้องอยู่เลเยอร์บนสุด + รับ click */
 .expense-item .right {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;      /* 🔥 อยู่บนสุด */
+  pointer-events: auto;
 }
 
 .expense-item .amount {
@@ -1439,11 +1457,16 @@ h2 {
   font-size: 18px;
   color: #dc2626;
   transition: transform 0.3s var(--ease-spring);
+  pointer-events: none;
 }
 
 .expense-item:hover .amount { transform: scale(1.08); }
 
-.expense-item .actions { display: flex; gap: 4px; }
+.expense-item .actions {
+  display: flex;
+  gap: 4px;
+  pointer-events: auto;
+}
 
 .expense-item .action-btn {
   width: 34px;
@@ -1459,6 +1482,9 @@ h2 {
   transition: all 0.3s var(--ease-spring);
   color: #64748b;
   padding: 0;
+  position: relative;
+  z-index: 11;      /* 🔥 สูงกว่า pseudo-element */
+  pointer-events: auto;
 }
 
 .expense-item .action-btn:hover {
