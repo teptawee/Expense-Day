@@ -84,6 +84,47 @@ function tooltipLabelCallback(ctx) {
 }
 
 // ===========================================
+// 🔥 DELETE HELPER (ใหม่ — ใช้ร่วมกันทุกที่)
+// ===========================================
+async function deleteExpense(id) {
+  console.log('🗑️ กำลังลบ expense id:', id);
+
+  const { data, error, status } = await db
+    .from('expenses')
+    .delete()
+    .eq('id', id)
+    .select();
+
+  console.log('📡 delete response:', { data, error, status });
+
+  if (error) {
+    console.error('❌ delete error:', error);
+
+    let msg = 'ลบไม่สำเร็จ: ' + error.message;
+
+    if (error.code === '42501' || /row-level security/i.test(error.message)) {
+      msg += '\n\n💡 สาเหตุ: RLS policy ที่ Supabase ยังไม่อนุญาตให้ลบ\n' +
+             'แก้ไข: สร้าง policy FOR DELETE TO anon USING (true) ในตาราง expenses';
+    } else if (error.code === '23503') {
+      msg += '\n\n💡 รายการนี้ถูกอ้างอิงอยู่ในตารางอื่น';
+    }
+
+    alert(msg);
+    return { ok: false, error };
+  }
+
+  if (!data || data.length === 0) {
+    console.warn('⚠️ ลบไม่สำเร็จ: ไม่พบแถวที่ตรงเงื่อนไข');
+    alert('ไม่พบรายการที่ต้องการลบ\n(อาจถูกลบไปแล้ว หรือติด RLS policy)');
+    return { ok: false, error: { message: 'No rows affected' } };
+  }
+
+  console.log('✅ ลบสำเร็จ:', data);
+  showToast('🗑️ ลบเรียบร้อย');
+  return { ok: true, data };
+}
+
+// ===========================================
 // SKELETON LOADERS
 // ===========================================
 function skeletonSummary() {
@@ -461,7 +502,6 @@ async function renderDashboard(root) {
   // ===========================================
   const colors = ['#10b981','#ef4444','#f59e0b','#8b5cf6','#ec4899','#3b82f6','#06b6d4','#22c55e','#a78bfa','#14b8a6','#6b7280'];
 
-  // ✅ chartDefaults — Tooltip รองรับทุกกราฟ
   const chartDefaults = {
     responsive: true,
     maintainAspectRatio: false,
@@ -840,13 +880,12 @@ async function renderDashboard(root) {
       };
     });
 
+    // ✅ ใช้ deleteExpense helper
     section.querySelectorAll('[data-delete]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('ลบรายการนี้?')) return;
-        const { error } = await db.from('expenses').delete().eq('id', btn.dataset.delete);
-        if (error) return alert('ผิดพลาด: ' + error.message);
-        showToast('🗑️ ลบเรียบร้อย');
-        loadRecent3Days();
+        const result = await deleteExpense(btn.dataset.delete);
+        if (result.ok) loadRecent3Days();
       };
     });
   }
@@ -1039,13 +1078,12 @@ async function renderList(root) {
       `;
     }).join('');
 
+    // ✅ ใช้ deleteExpense helper
     content.querySelectorAll('[data-delete]').forEach(btn => {
       btn.onclick = async () => {
         if (!confirm('ลบรายการนี้?')) return;
-        const { error } = await db.from('expenses').delete().eq('id', btn.dataset.delete);
-        if (error) return alert('ผิดพลาด: ' + error.message);
-        showToast('🗑️ ลบเรียบร้อย');
-        loadList();
+        const result = await deleteExpense(btn.dataset.delete);
+        if (result.ok) loadList();
       };
     });
 
@@ -1130,7 +1168,6 @@ async function openEditModal(expense, categories, onSaved) {
 
   document.body.appendChild(overlay);
 
-  // Subcategory dropdown
   const editCatSelect = overlay.querySelector('#editCatSelect');
   const editSubcatWrap = overlay.querySelector('#editSubcatWrap');
   const editSubcatSelect = overlay.querySelector('#editSubcatSelect');
@@ -1324,7 +1361,6 @@ async function renderAdd(root) {
     </div>
   `;
 
-  // Subcategory dropdown
   const catSelect = document.getElementById('catSelect');
   const subcatWrap = document.getElementById('subcatWrap');
   const subcatSelect = document.getElementById('subcatSelect');
@@ -1545,7 +1581,8 @@ async function renderSettings(root) {
     root.querySelectorAll('[data-del-cat]').forEach(b => {
       b.onclick = async () => {
         if (!confirm('ลบหมวดนี้?')) return;
-        await db.from('categories').delete().eq('id', b.dataset.delCat);
+        const { error } = await db.from('categories').delete().eq('id', b.dataset.delCat);
+        if (error) return alert('ผิดพลาด: ' + error.message);
         showToast('🗑️ ลบหมวดหมู่แล้ว');
         draw();
       };
@@ -1553,7 +1590,8 @@ async function renderSettings(root) {
     root.querySelectorAll('[data-del-pay]').forEach(b => {
       b.onclick = async () => {
         if (!confirm('ลบประเภทนี้?')) return;
-        await db.from('payment_methods').delete().eq('id', b.dataset.delPay);
+        const { error } = await db.from('payment_methods').delete().eq('id', b.dataset.delPay);
+        if (error) return alert('ผิดพลาด: ' + error.message);
         showToast('🗑️ ลบประเภทชำระแล้ว');
         draw();
       };
